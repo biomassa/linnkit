@@ -56,6 +56,17 @@ func analyzeJI(a *Analysis, opt Options) JISummary {
 	return sum
 }
 
+// NearestRatio returns the simplest ratio (up to 23-limit, odd limit 63, denominator 64)
+// within tol cents of a pitch, and its error in cents (ratio minus pitch).
+func NearestRatio(cents, tol float64) (*big.Rat, float64, bool) {
+	o := DefaultOptions()
+	c, ok := nearest(candidates(math.Max(cents, 0)+tol, o.JIMaxPrime, o.JIMaxOdd), cents, tol)
+	if !ok {
+		return nil, 0, false
+	}
+	return big.NewRat(c.n, c.d), c.cents - cents, true
+}
+
 // PrimeLimit returns the largest prime factor of the ratio's numerator and denominator,
 // or 0 if they do not fit in 64 bits.
 func PrimeLimit(r *big.Rat) int {
