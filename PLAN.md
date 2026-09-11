@@ -25,6 +25,15 @@ Tier 2, after v1: control most LinnStrument settings.
 | Presets | app presets (JSON on the Mac, pushed on demand) + guided save into a device memory |
 | Reference | the Python scripts in Dropbox/Linnstrument; their outputs become test cases |
 
+## Sources
+
+- `reference/linnstrument-facts.md`: verified firmware, device and synth facts with file:line. The `device` package's parameter table and send and readback code are built from it and from `refs/linnstrument-firmware`.
+- `reference/LinnStrumentReference.md`: manual digest, full NRPN list, troubleshooting.
+- `reference/EDO-howto.md`, `reference/31EDO/`: bend math, Aalto and Pigments setup.
+- `reference/linnstrument_edo*.py`: working message sequences. Their outputs become Go test cases.
+- `reference/tui-mockup.py`: the grid style for the TUI.
+- These are gitignored, local only.
+
 ## Hard constraints (firmware 2.3.4, checked in source)
 
 - Pad note = row start + (col − 1). Columns are always +1 MIDI note. Notes outside 0–127 are clamped, not skipped.
