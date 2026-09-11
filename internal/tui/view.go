@@ -88,6 +88,9 @@ func (m Model) render() string {
 
 func (m Model) header(w int) string {
 	left := " linnkit"
+	if m.relayRun != nil {
+		left += "  " + goodStyle.Render("● relay → "+m.relayRun.Out)
+	}
 	if m.analysis != nil {
 		left += "  " + boldStyle.Render(m.analysis.Scale.Name) + "  " + m.analysis.Scale.Description
 	}
@@ -99,8 +102,8 @@ func (m Model) header(w int) string {
 }
 
 func (m Model) footer(w int) string {
-	keys := "↑↓ move  Tab pane  Enter select  / filter  0-2 slot  l layout  c config  f factory  s send  " +
-		"p presets  e export  b backup  r restore  m matrix  t table  ? help  q quit"
+	keys := "↑↓ move  Tab pane  / filter  0-2 slot  l layout  c config  f factory  s send  " +
+		"p presets  e export  R relay  b backup  r restore  m t tables  ? help  q quit"
 	return dimStyle.Render(fit(" "+keys, w))
 }
 
@@ -256,7 +259,7 @@ func (m Model) synthLines(w, h int) []string {
 		}
 		out[1] += labelStyle.Render("  Linn bend B ") + valueStyle.Render(fmt.Sprint(pl.LinnBend))
 		if pl.InSteps {
-			out = append(out, wrapStyled("Live bends in scale steps: 1 pad = 1 degree", w, goodStyle)...)
+			out = append(out, wrapStyled("bend counts in scale steps: 1 pad = 1 degree", w, goodStyle)...)
 		} else {
 			out = append(out, " "+labelStyle.Render("pad ")+fmt.Sprintf("%.2f c", pl.PadCents)+
 				labelStyle.Render("  step ")+fmt.Sprintf("%.2f c", pl.Target)+
@@ -375,8 +378,24 @@ func (m Model) sendLines() []string {
 		out[4] = dimStyle.Render(ansi.Strip(out[4]) + "  unused")
 		out[7] = warnStyle.Render(out[7])
 	}
+	if p := m.lastSent; p != nil {
+		what := strings.TrimSuffix(filepath.Base(p.Scale), filepath.Ext(p.Scale))
+		if p.Factory {
+			what = "factory 12-TET"
+		}
+		out = append(out, "", " "+labelStyle.Render("last sent ")+what+fmt.Sprintf(", slot %d, %s", p.Slot, p.Settings.Synth))
+		detail := ""
+		if bl := p.BottomLeft; bl != nil {
+			rows := p.Settings.Offset
+			if p.Factory {
+				rows = 5
+			}
+			detail = fmt.Sprintf("bottom-left %d %s, rows +%d, ", *bl, midiName(*bl), rows)
+		}
+		out = append(out, "           "+detail+dimStyle.Render(p.Sent.Local().Format("Jan 2 15:04")))
+	}
 	if m.lastBackup != "" {
-		out = append(out, "", " "+dimStyle.Render("last backup: "+filepath.Base(m.lastBackup)))
+		out = append(out, " "+dimStyle.Render("last backup: "+filepath.Base(m.lastBackup)))
 	}
 	return out
 }
@@ -435,6 +454,9 @@ func (m Model) renderOverlay() string {
 	case overlayExport:
 		title = "EXPORT TO MADRONA LABS   .scl copied unchanged + a matching .kbm"
 		lines = m.exportLines()
+	case overlayRelay:
+		title = "TUNING RELAY   for 12-TET gear: Kurzweil K2600, Mutant Brain"
+		lines = m.relayLines()
 	case overlayHelp:
 		title = "HELP   Esc close"
 		lines = helpLines
@@ -529,7 +551,9 @@ var helpLines = []string{
 	"          b backup settings; r restore the latest backup",
 	" PRESETS  p opens them: a saves the scale with its settings under a name, Enter loads one, d deletes",
 	"          Each scale also remembers its own settings between runs.",
-	" EXPORT   e copies the scale plus a matching .kbm to ~/Music/Madrona Labs/Scales for Aalto;",
+	" RELAY    R opens the tuning relay: it retunes the LinnStrument for 12-TET gear (K2600, Mutant Brain)",
+	"          with pitch bend, one channel per note. Space starts and stops it; Esc closes the window only.",
+	" EXPORT   e copies the scale plus a matching .kbm to ~/Music/Madrona Labs/Scales/linnkit for Aalto;",
 	"          { } root, h reference Hz, a all listed scales. Files Aalto would read differently are skipped.",
 	"",
 	" Sends always back up every setting first and verify by readback afterwards.",

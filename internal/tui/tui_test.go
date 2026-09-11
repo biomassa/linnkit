@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/biomassa/linnkit/internal/export"
 	"github.com/biomassa/linnkit/internal/lights"
+	"github.com/biomassa/linnkit/internal/relay"
 	"github.com/biomassa/linnkit/internal/scala"
 	"github.com/biomassa/linnkit/internal/store"
 	"github.com/biomassa/linnkit/internal/testutil"
@@ -312,5 +314,83 @@ func TestAbletonProfilesSendBend48(t *testing.T) {
 		if !strings.Contains(ansi.Strip(m.View().Content), "1 pad = 1 degree") {
 			t.Errorf("%s: SYNTH pane should say bends count in scale steps", name)
 		}
+	}
+}
+
+func TestLastSendIsRestored(t *testing.T) {
+	st, _ := store.Open(t.TempDir())
+	m := withStore(t, st)
+	m = press(t, m, down, down, down, enter) // ji_13
+	m = press(t, m, tab, tab, down)          // second layout
+	m = press(t, m, char(']'), char(']'))    // bottom-left note up 2
+	m = press(t, m, tab, down)               // note names
+	m = press(t, m, char('1'), char('s'))
+	next, cmd := m.Update(char('y'))
+	if m = next.(Model); cmd == nil || m.pending == nil {
+		t.Fatal("confirming should start a send")
+	}
+	want := m.current()
+	m = press(t, m, char('0')) // a change while sending is not what was sent
+	next, _ = m.Update(jobDoneMsg{text: "sent", slot: 1, sent: true})
+	m = next.(Model)
+
+	m2 := withStore(t, st) // restart
+	if m2.analysis == nil || m2.loaded != m.loaded || m2.slot != 1 || !equalSettings(m2.settings(), want.Settings) {
+		t.Fatalf("restart: %s slot %d %+v, want %+v", m2.loaded, m2.slot, m2.settings(), want.Settings)
+	}
+	if m2.lay.RowStart[0] != *want.BottomLeft {
+		t.Errorf("bottom-left %d, sent %d", m2.lay.RowStart[0], *want.BottomLeft)
+	}
+	if !strings.Contains(ansi.Strip(m2.View().Content), fmt.Sprintf("bottom-left %d %s", *want.BottomLeft, midiName(*want.BottomLeft))) {
+		t.Error("SEND pane should show the bottom-left note of the last send")
+	}
+	if vis := m2.visible(); vis[m2.sel].path != m2.loaded {
+		t.Error("the scale list cursor should sit on the restored scale")
+	}
+	if !strings.Contains(ansi.Strip(m2.View().Content), "last sent") {
+		t.Error("SEND pane should show the last send")
+	}
+}
+
+func TestFailedSendIsNotRemembered(t *testing.T) {
+	st, _ := store.Open(t.TempDir())
+	m := withStore(t, st)
+	m = press(t, m, char('s'))
+	next, _ := m.Update(char('y'))
+	next, _ = next.(Model).Update(jobDoneMsg{text: "nothing sent", slot: -1})
+	if c, _ := st.Config(); c.LastSent != nil || next.(Model).lastSent != nil {
+		t.Error("a send that never reached the device must not be remembered")
+	}
+}
+
+func TestRelayWindow(t *testing.T) {
+	st, _ := store.Open(t.TempDir())
+	m := withStore(t, st)
+	m.cfg.ListPorts = func() []string { return []string{"LinnStrument MIDI", "IAC Bus 1", "UltraLite-mk5 MIDI Port"} }
+	m = press(t, m, char('R'))
+	if m.overlay != overlayRelay || len(m.relayPorts) != 2 || m.relayPorts[m.relayPort] != "UltraLite-mk5 MIDI Port" {
+		t.Fatalf("overlay %v ports %v pick %d", m.overlay, m.relayPorts, m.relayPort)
+	}
+	out := ansi.Strip(m.View().Content)
+	for _, s := range []string{"TUNING RELAY", "Kurzweil K2600", "16 voices", "24 semitones", "22edo"} {
+		if !strings.Contains(out, s) {
+			t.Errorf("relay window lacks %q", s)
+		}
+	}
+	m = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight}) // target: Mutant Brain
+	cfg := m.relayConfig()
+	if relay.Targets[m.relayTarget].Name != "Mutant Brain" || cfg.LastChan != 4 || cfg.BendRange != 24 || cfg.MinNote != 24 {
+		t.Errorf("Mutant Brain config %+v", cfg)
+	}
+	if tu := cfg.Tuning; tu.Root != 60 || len(tu.Cents) != 22 || tu.Offset != 0 {
+		t.Errorf("tuning from the dashboard: %+v", tu)
+	}
+	m = press(t, m, esc)
+	if m.overlay != noOverlay || m.relayRun != nil {
+		t.Error("Esc closes the window")
+	}
+	m = m.saveRelaySettings()
+	if m2 := withStore(t, st); relay.Targets[m2.relayTarget].Name != "Mutant Brain" || m2.relayLast != 4 {
+		t.Errorf("relay settings should be remembered: %s %d", relay.Targets[m2.relayTarget].Name, m2.relayLast)
 	}
 }

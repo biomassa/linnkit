@@ -39,7 +39,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  linnkit grid [--offset n] [--low n] [--root n] [--scheme ji|names|mos|root] [--color] FILE")
 		fmt.Fprintln(os.Stderr, "  linnkit device ports | read [NUM...] | backup FILE | restore FILE")
 		fmt.Fprintln(os.Stderr, "  linnkit send --slot 0|1|2 [--layout] [--configure] [grid flags] FILE")
-		fmt.Fprintln(os.Stderr, "  linnkit export [-n] [--root n] [--dir DIR] FILE...   copy to Madrona Labs Scales with a .kbm")
+		fmt.Fprintln(os.Stderr, "  linnkit export [-n] [--root n] [--dir DIR] FILE...   copy to Madrona Labs Scales/linnkit with a .kbm")
 		fmt.Fprintln(os.Stderr, "  linnkit folders [add|remove DIR]   extra scale folders (app data: ~/.config/linnkit)")
 		fmt.Fprintln(os.Stderr, "  linnkit --version")
 	}

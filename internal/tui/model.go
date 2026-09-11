@@ -3,12 +3,14 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/biomassa/linnkit/internal/device"
 	"github.com/biomassa/linnkit/internal/layout"
 	"github.com/biomassa/linnkit/internal/lights"
+	"github.com/biomassa/linnkit/internal/relay"
 	"github.com/biomassa/linnkit/internal/scala"
 	"github.com/biomassa/linnkit/internal/store"
 	"github.com/biomassa/linnkit/internal/synth"
@@ -44,15 +46,17 @@ const (
 	overlayConfirmRestore
 	overlayPresets
 	overlayExport
+	overlayRelay
 )
 
 // Config is how the dashboard starts.
 type Config struct {
-	ScaleDirs []string     // folders searched for .scl files
-	Port      string       // MIDI port name (substring)
-	Root      int          // MIDI note of degree 0 for scales with no saved settings
-	Store     *store.Store // app data; nil keeps nothing between runs
-	ExportDir string       // Madrona Labs export folder; empty = export.MadronaDir()
+	ScaleDirs []string        // folders searched for .scl files
+	Port      string          // MIDI port name (substring)
+	Root      int             // MIDI note of degree 0 for scales with no saved settings
+	Store     *store.Store    // app data; nil keeps nothing between runs
+	ExportDir string          // Madrona Labs export folder; empty = export.MadronaDir()
+	ListPorts func() []string // MIDI outputs for the relay; nil = device.OutputPorts
 }
 
 var (
@@ -113,6 +117,23 @@ type Model struct {
 	confirmDel bool   // asking before deleting the selected preset
 	confirmRep bool   // asking before replacing a preset with the typed name
 
+	pending *store.Preset // what the running send puts on the device
+
+	relayRun      *relay.Runner // nil when the relay is stopped
+	relayTarget   int
+	relayPorts    []string
+	relayPort     int
+	relayPortName string
+	relayFirst    int
+	relayLast     int
+	relayBend     int
+	relayRPN      bool
+	relayField    int
+	relayInBend   int
+	relayMsg      string
+	relayTickID   int
+	lastSent      *store.Preset // what the last finished send put there
+
 	exportAll bool   // export every listed scale, not just the loaded one
 	typingHz  bool   // typing the reference frequency
 	hzText    string // the frequency being typed
@@ -127,16 +148,28 @@ func New(cfg Config) Model {
 		cfg.Port = device.DefaultPortName
 	}
 	m := Model{cfg: cfg, loading: true, limitIx: 2, slot: 2, withLayout: true, withConfig: true, low: -1,
-		root: cfg.Root, synthBend: synth.Profiles[0].DefaultBend,
+		root: cfg.Root, synthBend: synth.Profiles[0].DefaultBend, relayRPN: true,
 		status: "loading scales", deviceInfo: "checking device"}
+	m = m.setRelayTarget(0)
 	if cfg.Store != nil {
 		c, err := cfg.Store.Config()
 		if err != nil {
 			m.status = "config: " + err.Error()
 		}
 		m = m.setSynth(c.Synth, c.SynthBend)
+		m.lastSent = c.LastSent
+		if c.Relay != nil {
+			m = m.loadRelaySettings(c.Relay)
+		}
 	}
 	return m
+}
+
+// current is the loaded scale with every setting a send uses.
+func (m Model) current() store.Preset {
+	bl := m.shown().RowStart[0]
+	return store.Preset{Scale: m.loaded, Settings: m.settings(), Slot: m.slot,
+		WithLayout: m.withLayout, WithConfig: m.withConfig, Factory: m.factory, BottomLeft: &bl}
 }
 
 // setSynth picks the profile called name (if any) and bend range s (if allowed).
@@ -167,6 +200,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scalesLoadedMsg:
 		m.entries, m.loading = msg.entries, false
 		m.status = fmt.Sprintf("%d scales", len(m.entries))
+		if m.analysis == nil && m.lastSent != nil {
+			m = m.restoreLastSent()
+		}
 		if m.analysis == nil && len(m.visible()) > 0 {
 			m = m.load(0)
 		}
@@ -181,9 +217,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.slot >= 0 {
 			m.deviceInfo = fmt.Sprintf("connected, showing light slot %d", msg.slot)
 		}
+		if msg.sent && m.pending != nil {
+			p := *m.pending
+			p.Sent = time.Now()
+			m.lastSent, m.pending = &p, nil
+			if m.cfg.Store != nil {
+				if err := m.cfg.Store.SaveLastSent(p); err != nil {
+					m.status += "; not remembered: " + err.Error()
+				}
+			}
+		}
 	case tea.KeyPressMsg:
 		next, cmd := m.key(msg.String())
-		return next.(Model).persist(), cmd
+		nm := next.(Model).persist()
+		if nm.relayRun != nil && nm.analysis != nil {
+			nm.relayRun.E.SetTuning(nm.relayTuning())
+		}
+		return nm, cmd
+	case relayStartedMsg:
+		if msg.err != nil {
+			m.relayMsg = "not started: " + msg.err.Error()
+			return m, nil
+		}
+		m.relayRun, m.relayInBend, m.relayMsg = msg.run, msg.inBend, msg.note
+		if m.overlay == overlayRelay {
+			return m, relayTick(m.relayTickID)
+		}
+	case relayTickMsg:
+		if m.relayRun != nil && m.overlay == overlayRelay && msg.id == m.relayTickID {
+			return m, relayTick(m.relayTickID)
+		}
 	}
 	return m, nil
 }
@@ -252,7 +315,7 @@ func (m Model) apply(v store.ScaleSettings) Model {
 
 func (m Model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "ctrl+c" {
-		return m, tea.Quit
+		return m.stopRelay(), tea.Quit
 	}
 	if m.overlay != noOverlay {
 		return m.overlayKey(k)
@@ -262,7 +325,9 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 	}
 	switch k {
 	case "q":
-		return m, tea.Quit
+		return m.stopRelay(), tea.Quit
+	case "R":
+		return m.openRelay()
 	case "tab", "right":
 		m.focus = (m.focus + 1) % paneCount
 	case "shift+tab", "left":
@@ -444,10 +509,14 @@ func (m Model) overlayKey(k string) (tea.Model, tea.Cmd) {
 		return m.presetKey(k), nil
 	case overlayExport:
 		return m.exportKey(k)
+	case overlayRelay:
+		return m.relayKey(k)
 	case overlayConfirmSend:
 		switch k {
 		case "y":
 			m.overlay, m.busy = noOverlay, true
+			p := m.current()
+			m.pending = &p
 			m.status = fmt.Sprintf("sending to light slot %d", m.slot)
 			return m, sendCmd(m.cfg.Port, m.job())
 		case "n", "esc", "q":
@@ -545,8 +614,8 @@ func (m Model) paint() Model {
 		m.legend = "C root  naturals white  sharps blue  flats green"
 	case "mos":
 		if mos, ok := lights.DefaultMOS(m.analysis); ok {
-			sw = lights.MOSPattern(n, mos, lights.Magenta, lights.White, lights.Blue)
-			m.legend = fmt.Sprintf("R root  o MOS (%d notes, generator %d degrees)  x other", mos.Size, mos.Generator)
+			sw = lights.MOSPattern(n, mos, lights.Magenta, lights.White, lights.Off)
+			m.legend = fmt.Sprintf("R root  o MOS (%d notes, generator %d degrees)  other degrees unlit", mos.Size, mos.Generator)
 		} else {
 			sw = lights.RootOnly(n, lights.Magenta)
 			m.legend = "no MOS found in this scale: root only"

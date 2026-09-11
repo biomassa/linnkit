@@ -18,10 +18,11 @@ import (
 )
 
 // MadronaDir is where linnkit puts scales for Madrona Labs synths:
-// ~/Music/Madrona Labs/Scales, the top level of Aalto's scale menu.
+// ~/Music/Madrona Labs/Scales/linnkit, a "linnkit" submenu in Aalto's scale
+// menu, apart from the scales that come with the synths.
 func MadronaDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Music", "Madrona Labs", "Scales")
+	return filepath.Join(home, "Music", "Madrona Labs", "Scales", "linnkit")
 }
 
 // Item is one scale to export.

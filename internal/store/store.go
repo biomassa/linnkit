@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Store is a folder of JSON files:
@@ -39,9 +40,21 @@ func Open(dir string) (*Store, error) {
 
 // Config is app-wide.
 type Config struct {
-	ScaleDirs []string `json:"scale_dirs,omitempty"` // extra folders, added to the defaults
-	Synth     string   `json:"synth,omitempty"`      // synth profile for scales with no settings yet
-	SynthBend int      `json:"synth_bend,omitempty"`
+	ScaleDirs []string       `json:"scale_dirs,omitempty"` // extra folders, added to the defaults
+	Synth     string         `json:"synth,omitempty"`      // synth profile for scales with no settings yet
+	SynthBend int            `json:"synth_bend,omitempty"`
+	LastSent  *Preset        `json:"last_sent,omitempty"` // what the last send put on the LinnStrument
+	Relay     *RelaySettings `json:"relay,omitempty"`
+}
+
+// RelaySettings are the tuning relay's last settings.
+type RelaySettings struct {
+	Target string `json:"target"`
+	Port   string `json:"port"`
+	First  int    `json:"first"`
+	Last   int    `json:"last"`
+	Bend   int    `json:"bend"`
+	NoRPN  bool   `json:"no_rpn,omitempty"`
 }
 
 // ScaleSettings is what the dashboard remembers for one scale.
@@ -65,6 +78,20 @@ type Preset struct {
 	Slot       int           `json:"slot"` // custom light slot 0-2
 	WithLayout bool          `json:"with_layout"`
 	WithConfig bool          `json:"with_config"`
+	Factory    bool          `json:"factory,omitempty"`     // the factory 12-TET layout was sent instead of the scale
+	BottomLeft *int          `json:"bottom_left,omitempty"` // MIDI note of the bottom-left pad that was sent
+	Sent       time.Time     `json:"sent,omitzero"`         // when it was sent (LastSent only)
+}
+
+// SaveLastSent records what was just sent, keeping the rest of the config.
+func (s *Store) SaveLastSent(p Preset) error {
+	c, err := s.Config()
+	if err != nil {
+		return err
+	}
+	p.Scale = key(p.Scale)
+	c.LastSent = &p
+	return s.SaveConfig(c)
 }
 
 // Config reads config.json; a missing file gives the zero Config.

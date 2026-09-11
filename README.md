@@ -1,5 +1,7 @@
 # linnkit
 
+![The linnkit dashboard with the ji_8coh scale, just-interval lights and the Ableton Live synth profile](docs/dashboard.png)
+
 linnkit is a terminal app for the Roger Linn LinnStrument. It reads Scala (`.scl`) scale files. It shows the contents of a scale. It makes a row layout and a light pattern for the scale. It sends them to the LinnStrument.
 
 linnkit works with all types of scale: just intonation, equal divisions (EDO), non-octave scales and irregular scales.
@@ -79,6 +81,7 @@ Use Tab, or the Left and Right arrows, to go to the next pane. Use the Up and Do
 | `s` | Send to the LinnStrument (linnkit asks first) |
 | `p` | Open the presets |
 | `e` | Export to Madrona Labs synths |
+| `R` | Open the tuning relay |
 | `b` | Back up the LinnStrument settings |
 | `r` | Restore the latest backup |
 | `m` | Show the interval matrix |
@@ -113,7 +116,7 @@ To go back to the settings before the send, press `r`. Then press `y`.
 |---|---|
 | Just-interval families | One color for each prime limit (3, 5, 7, 11, 13) |
 | Note names | The root, naturals, sharps and flats in different colors |
-| MOS inside the scale | The notes of a smaller moment-of-symmetry scale |
+| MOS inside the scale | The root and the notes of a smaller moment-of-symmetry scale. The other notes are not lit. |
 | Root only | The root only |
 
 The LinnStrument has 10 colors. Each LED is either on or off for red, green and blue. White, orange, lime and pink are mixes of two colors. Thus, white looks light cyan and pink looks salmon on the pads. The grid preview shows these mixes.
@@ -144,13 +147,13 @@ For scales with unequal steps, one pad of slide is the average step. The SYNTH p
 
 | Profile | Tuning | Bend range |
 |---|---|---|
-| Aalto / Kaivo | `.scl` + `.kbm` in `~/Music/Madrona Labs/Scales` | 12, 24, 48 or 96 |
+| Aalto / Kaivo | `.scl` + `.kbm` in `~/Music/Madrona Labs/Scales/linnkit` | 12, 24, 48 or 96 |
 | Pigments | `.scl` (set Reference Note C3 = MIDI 60 when you load it) | 2–96 |
 | Surge XT | `.scl` + `.kbm`, or MTS-ESP | 1–96 |
 | Plasmonic | MTS-ESP | 1–96 |
 | Cypher2 | `.tun` | 48 |
-| Ableton Live built-ins | Live 12 Tuning System | 48 |
-| Live tuning + MPE plugin | Live 12 Tuning System | 48 |
+| Ableton Live built-ins | Live 12 Tuning System | 48 (checked) |
+| Live tuning + MPE plugin | Live 12 Tuning System | 48 (checked with Noisy 2 and Aalto) |
 | Bitwig built-ins / Grid | Micro-pitch device (12 notes or fewer) | 1–96 |
 | Legacy (non-MPE) | In the synth | 1–24, One Channel mode |
 | Generic MPE | In the synth | 1–96 |
@@ -159,19 +162,25 @@ The SYNTH pane shows if linnkit checked the profile on a real synth.
 
 ### Ableton Live 12
 
-Use this procedure for synths that have no tuning function, for example Expressive E Noisy 2:
+Use this procedure for plugins in Live, for example Expressive E Noisy 2 or Aalto. Live then tunes the plugin.
 
 1. Load the `.scl` file from the Tunings section of the Live browser.
-2. In the plugin, set MPE to on.
+2. In the plugin, set MPE to on. In Aalto, set "Input protocol" to "MIDI MPE".
 3. In the plugin, set the per-note pitch bend range to 48.
-4. On the track, make sure that "Bypass Tuning" is off.
-5. In linnkit, select "Live tuning + MPE plugin". The send sets B to 48.
+4. If the plugin has its own tuning, set it to 12-equal. In Aalto, select "12-equal" in the scale menu of the KEY module.
+5. In Live, right-click the title bar of the device. Select "Enable MPE Mode".
+6. On the track, make sure that "Bypass Tuning" is off.
+7. In linnkit, select "Live tuning + MPE plugin". The send sets B to 48.
+
+**Caution:** Do not use a plugin tuning and a Live tuning together on one track. The plugin then gets the tuning two times.
 
 With a tuning, Live measures pitch bend in scale steps. Thus, B = 48 and S = 48 give one scale step for each pad.
 
 ## Presets and saved settings
 
 linnkit keeps the settings of each scale: row offset, bottom-left note, root, reference frequency, light scheme and synth. When you load the scale again, linnkit uses these settings.
+
+linnkit also keeps the last send. When you start linnkit again, it shows the scale, layout, bottom-left note, light scheme, synth and light slot of the last send. The SEND pane shows the bottom-left note, the row offset and the time of the last send. A send that does not get to the LinnStrument does not change this.
 
 A preset keeps a scale, its settings and a light slot under a name.
 
@@ -184,7 +193,7 @@ linnkit keeps its data in `~/.config/linnkit`. To use a different folder, set `L
 
 ## Export to Madrona Labs synths
 
-Aalto and Kaivo read scales from `~/Music/Madrona Labs/Scales`.
+Aalto and Kaivo read scales from `~/Music/Madrona Labs/Scales`. linnkit writes to the `linnkit` subfolder there. In Aalto, the subfolder is a submenu of the scale menu.
 
 1. Load a scale.
 2. Press `e`.
@@ -196,13 +205,47 @@ linnkit copies each `.scl` file with no changes. It writes a `.kbm` file with th
 
 Aalto reads some `.scl` files differently from the Scala standard. For example, Aalto reads a line as cents if the line contains a period, also in a comment. linnkit does not export these files. The export screen shows the reason.
 
-In Aalto, select the scale from the scale menu in the KEY module.
+In Aalto, select the scale from the scale menu in the KEY module, in the "linnkit" submenu.
 
 You can also export from the command line:
 
     bin/linnkit export SCL/31-edo.scl
 
 Use `-n` to see the files before linnkit writes them.
+
+## Tuning relay for 12-TET instruments
+
+Some instruments have no microtuning function, for example the Kurzweil K2600 and the Hexinverter Mutant Brain. The tuning relay tunes them to the scale on the dashboard.
+
+The relay receives the LinnStrument notes over USB. It sends each note as the nearest 12-TET note with pitch bend. Each note gets its own MIDI channel. The relay sends to a MIDI output, for example the DIN output of an audio interface.
+
+The relay uses these rules:
+
+- A slide across one pad goes to the next scale degree, also in scales with unequal steps.
+- Pressure, Y and poly aftertouch go to the channel of their note. Sustain and program changes go to all channels. MIDI clock goes through.
+- A new note uses the free channel that was quiet for the longest time. Thus, release tails keep their pitch. If all channels are in use, the relay stops the oldest note.
+- The pitch bend range is 24 semitones. At start, the relay sends this range (RPN 0) to each channel.
+
+To use the relay:
+
+1. Load a scale and set the root on the dashboard.
+2. In SYNTH, select "linnkit relay". Send to the LinnStrument. The LinnStrument is then in Channel Per Note mode with Bend Range 24.
+3. Press `R`.
+4. Select the target, the output port and the channels. Use the Up and Down arrows to select a line. Use the Left and Right arrows to change it.
+5. Set up the target as the relay window shows.
+6. Press Space to start the relay.
+
+Press Esc to close the window. The relay continues, and the header shows "relay". Press Space in the relay window to stop the relay. When you quit linnkit, the relay stops all notes.
+
+If you change the scale, the root or the reference frequency on the dashboard, the relay uses the change immediately.
+
+| Target | Channels | Setup on the instrument |
+|---|---|---|
+| Kurzweil K2600 | 1–16 | MIDI receive mode Multi. The same program on each channel. Pitch bend range 24 semitones. No intonation table. |
+| Mutant Brain | 1–4 | Note inputs 1–4 on channels 1–4, last-note priority, pitch bend ±24. CV A–D from note inputs 1–4. Notes outside MIDI 24–120 are not sent. |
+| Generic 12-TET synth | 1–16 | The same sound on each channel. Pitch bend range 24 semitones. |
+
+The relay settings stay in `~/.config/linnkit/config.json`.
 
 ## Command-line tools
 
@@ -215,7 +258,7 @@ Use `-n` to see the files before linnkit writes them.
 | `linnkit device backup FILE` | Save all settings to a file |
 | `linnkit device restore FILE` | Write the settings from a file |
 | `linnkit send --slot N [--layout] [--configure] FILE` | Send a scale without the dashboard |
-| `linnkit export [-n] FILE...` | Copy scales and `.kbm` files to Madrona Labs |
+| `linnkit export [-n] FILE...` | Copy scales and `.kbm` files to `~/Music/Madrona Labs/Scales/linnkit` |
 | `linnkit folders [add\|remove DIR]` | Show, add or remove scale folders |
 
 ## Troubleshooting

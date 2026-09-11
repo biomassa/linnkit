@@ -158,11 +158,16 @@ func isMOS(degs []int, n int) bool {
 	return len(sizes) == 2
 }
 
-// MOSPattern colors the root, the MOS degrees and the remaining degrees.
+// MOSPattern colors the root, the MOS degrees and the remaining degrees
+// (Off leaves those unlit and unlabelled).
 func MOSPattern(n int, m MOSChoice, root, in, rest Color) []Swatch {
 	sw := make([]Swatch, n)
+	label := "x"
+	if rest == Off {
+		label = ""
+	}
 	for d := range sw {
-		sw[d] = Swatch{rest, "x"}
+		sw[d] = Swatch{rest, label}
 	}
 	for _, d := range m.Degrees(n) {
 		sw[d] = Swatch{in, "o"}

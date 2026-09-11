@@ -49,8 +49,9 @@ type Profile struct {
 var Profiles = []Profile{
 	{
 		Name: "Aalto / Kaivo", MPE: true, BendValues: []int{12, 24, 48, 96}, DefaultBend: 12, ObeysRPN: No,
-		Tuning: ".scl + .kbm listing every degree, in ~/Music/Madrona Labs/Scales", Verified: true,
-		Notes: []string{"gear menu: Input protocol = MIDI MPE, MPE bend range", "KEY bend knob is channel bend, not per-note"},
+		Tuning: ".scl + .kbm listing every degree; linnkit exports to Scales/linnkit", Verified: true,
+		Notes: []string{"gear menu: Input protocol = MIDI MPE, MPE bend range", "KEY bend knob is channel bend, not per-note",
+			"in Live with a Live tuning: use Live tuning + MPE plugin"},
 	},
 	{
 		Name: "Pigments", MPE: true, BendMin: 2, BendMax: 96, DefaultBend: 12, ObeysRPN: Unknown,
@@ -74,17 +75,23 @@ var Profiles = []Profile{
 	},
 	{
 		Name: "Ableton Live built-ins", MPE: true, BendMin: 48, BendMax: 48, DefaultBend: 48, ObeysRPN: Unknown,
-		HostSteps: true,
-		Tuning:    "Live 12 Tuning System: load the .scl from the Tunings section of Live's browser",
+		HostSteps: true, Verified: true,
+		Tuning: "Live 12 Tuning System: load the .scl from the Tunings section of Live's browser",
 		Notes: []string{"Wavetable, Meld, Drift, Sampler take MPE",
-			"bend in scale steps checked with a plugin (Noisy 2), assumed for the built-ins"},
+			"checked 2026-09-11: B 48, slides land on every pad"},
 	},
 	{
 		Name: "Live tuning + MPE plugin", MPE: true, BendMin: 48, BendMax: 48, DefaultBend: 48, ObeysRPN: Unknown,
 		HostSteps: true, Verified: true,
-		Tuning: "Live 12 Tuning System retunes the plugin (for plugins without tuning, e.g. Noisy 2)",
-		Notes: []string{"plugin: MPE on, per-note bend range 48", "track: Bypass Tuning off",
-			"checked 2026-09-11 with Noisy 2 and 31-EDO: slides land on every pad"},
+		Tuning: "Live 12 Tuning System retunes the plugin (Noisy 2, or Aalto set to 12-equal)",
+		Notes: []string{"plugin: MPE on, bend 48; Live: device title bar > Enable MPE Mode",
+			"track: Bypass Tuning off", "checked with Noisy 2 and Aalto, 31-EDO"},
+	},
+	{
+		Name: "linnkit relay", MPE: true, BendMin: 24, BendMax: 24, DefaultBend: 24, ObeysRPN: No, HostSteps: true,
+		Tuning: "linnkit's tuning relay (key R) retunes 12-TET gear with pitch bend",
+		Notes: []string{"for the Kurzweil K2600, Mutant Brain or any 12-TET synth",
+			"the relay reads this Bend Range and turns slides into scale steps"},
 	},
 	{
 		Name: "Bitwig built-ins / Grid", MPE: true, BendMin: 1, BendMax: 96, DefaultBend: 48, ObeysRPN: Unknown,

@@ -65,8 +65,8 @@ func (g *gridOpts) build(path string) (*gridResult, error) {
 		if !ok {
 			return nil, errors.New("no MOS found in this scale")
 		}
-		sw = lights.MOSPattern(n, m, lights.Magenta, lights.White, lights.Blue)
-		r.legend = fmt.Sprintf("R root  o MOS (%d notes, generator %d, degrees %v)  x other", m.Size, m.Generator, m.Degrees(n))
+		sw = lights.MOSPattern(n, m, lights.Magenta, lights.White, lights.Off)
+		r.legend = fmt.Sprintf("R root  o MOS (%d notes, generator %d, degrees %v)  other degrees unlit", m.Size, m.Generator, m.Degrees(n))
 	case "names":
 		sw = lights.NoteNames(r.analysis, lights.Magenta, lights.White, lights.Blue, lights.Green)
 		r.legend = "C root (magenta)  naturals white  sharps blue  flats green  . other"

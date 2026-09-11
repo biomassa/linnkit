@@ -116,9 +116,9 @@ Rules:
    - Each profile shows its tuning method and whether its values are verified.
 7. **Device:** connection, read-back status.
 7. **Export to Madrona Labs plugins:**
-   - Copy the selected `.scl` files unchanged into the Madrona Labs Scales folder.
+   - Copy the selected `.scl` files unchanged into the Madrona Labs Scales folder, in a `linnkit/` subfolder so they don't mix with the synths' own scales.
    - Write a matching `.kbm` next to each one: degree 0 = root MIDI note (D4), every degree listed. Aalto ignores a size-0 map and falls back to A4.
-   - Target folder: `~/Music/Madrona Labs/Scales/` itself, no subfolder (D9, changed 2026-09-11). This is the folder Aalto 1.9.5 reads; `~/Library/Audio/Presets/Madrona Labs/Scales` is not used. Same-named files there are replaced, and the overlay lists them before `y`.
+   - Target folder: `~/Music/Madrona Labs/Scales/linnkit/` (D9; briefly the top level, back to the subfolder 2026-09-11). This is the folder Aalto 1.9.5 reads; `~/Library/Audio/Presets/Madrona Labs/Scales` is not used. Same-named files there are replaced, and the overlay lists them before `y`.
 
 ## Milestones
 
@@ -142,6 +142,14 @@ M5 order (2026-09-11):
    - Not yet checked in Aalto itself.
 3. Palette editor: an overlay listing degrees; ↑↓ pick a degree, ←→ cycle the 10 colors, 0 turns it off; starts from the current scheme.
 4. Guided save to a device memory.
+5. Tuning relay (added 2026-09-11, key `R`). Done:
+   - LinnStrument USB in → nearest 12-TET note + pitch bend, one output channel per note → a DIN port.
+   - Targets: Kurzweil K2600 (Multi mode, channels 1–16), Mutant Brain (channels 1–4, notes 24–120), generic.
+   - Bend range 24 by default; RPN 0 is sent on start.
+   - Slides are turned into scale positions, so they land on every degree.
+   - Channels are allocated by quietest channel first; the oldest note is stolen when all are busy.
+   - The relay reads the LinnStrument Bend Range on start. The synth profile "linnkit relay" sets it to 24.
+   - Not yet run with the real K2600 or Mutant Brain.
 | Tier 2 | Most LinnStrument settings | tbd |
 
 ## Testing
@@ -177,5 +185,5 @@ M5 order (2026-09-11):
   - More than 128 notes: described only; layouts limited to what fits in MIDI 0–127.
 - **D7 Bend range for unequal steps:** your choice. The app shows the options (average step, smallest step, the Quantize and Quant Hold settings) and their effect; it doesn't pick one.
 - **D8 `SCL/`:** committed; the files are test fixtures.
-- **D9 Madrona Labs export:** `~/Music/Madrona Labs/Scales/` (top level, no subfolder), with a `.kbm` per scale listing every degree.
+- **D9 Madrona Labs export:** `~/Music/Madrona Labs/Scales/linnkit/`, with a `.kbm` per scale listing every degree.
 - **Note-name lights:** added as a user-selectable scheme (`names`), a port of `linnstrument_edo.py`.

@@ -1,6 +1,7 @@
 package device
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -52,6 +53,28 @@ func OpenPort(name string) (Port, error) {
 	return &midiPort{out: out, in: in}, nil
 }
 
+// OpenOutput opens only the output port whose name contains name.
+func OpenOutput(name string) (Port, error) {
+	out, err := findOut(name)
+	if err != nil {
+		return nil, err
+	}
+	if err := out.Open(); err != nil {
+		return nil, fmt.Errorf("open output %q: %w", out, err)
+	}
+	return &midiPort{out: out}, nil
+}
+
+// OpenInput opens only the input port whose name contains name; SetListener
+// starts listening.
+func OpenInput(name string) (Port, error) {
+	in, err := findIn(name)
+	if err != nil {
+		return nil, err
+	}
+	return &midiPort{in: in}, nil
+}
+
 func findOut(name string) (drivers.Out, error) {
 	for _, p := range midi.GetOutPorts() {
 		if strings.Contains(p.String(), name) {
@@ -74,6 +97,9 @@ func findIn(name string) (drivers.In, error) {
 var debugMIDI = os.Getenv("LINNKIT_MIDI_DEBUG") != ""
 
 func (p *midiPort) Send(msg []byte) error {
+	if p.out == nil {
+		return errors.New("input-only port")
+	}
 	if debugMIDI {
 		fmt.Fprintf(os.Stderr, "midi out % x\n", msg)
 	}
@@ -100,8 +126,13 @@ func (p *midiPort) Close() error {
 	if p.stop != nil {
 		p.stop()
 	}
-	errIn := p.in.Close()
-	errOut := p.out.Close()
+	var errIn, errOut error
+	if p.in != nil {
+		errIn = p.in.Close()
+	}
+	if p.out != nil {
+		errOut = p.out.Close()
+	}
 	if errIn != nil {
 		return errIn
 	}

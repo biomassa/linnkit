@@ -119,6 +119,23 @@ func (m Model) savePreset() Model {
 	return m
 }
 
+// restoreLastSent opens what the last send put on the LinnStrument.
+func (m Model) restoreLastSent() Model {
+	p := *m.lastSent
+	m = m.loadPreset(p)
+	if m.analysis == nil {
+		m.status = "last send: " + m.status
+		return m
+	}
+	m.factory = p.Factory
+	if bl := p.BottomLeft; bl != nil && !p.Factory && m.lay.RowStart[0] != *bl {
+		m.low = *bl // the exact bottom-left note that was sent
+	}
+	m = m.paint()
+	m.status = "showing the last send (" + p.Sent.Local().Format("Jan 2 15:04") + ")"
+	return m
+}
+
 // loadPreset opens the preset's scale with its settings. It sends nothing.
 func (m Model) loadPreset(p store.Preset) Model {
 	m.filter, m.factory = "", false

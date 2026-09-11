@@ -30,7 +30,8 @@ type (
 	jobDoneMsg      struct {
 		text   string
 		backup string
-		slot   int // light slot now showing, -1 if unchanged
+		slot   int  // light slot now showing, -1 if unchanged
+		sent   bool // a send reached the device (even if verifying failed)
 	}
 )
 
@@ -109,10 +110,10 @@ func sendCmd(port string, job device.Job) tea.Cmd {
 		}
 		n, err := d.Run(job, deviceTimeout)
 		if err != nil {
-			return jobDoneMsg{text: "sent, but " + err.Error(), backup: path, slot: job.Slot}
+			return jobDoneMsg{text: "sent, but " + err.Error(), backup: path, slot: job.Slot, sent: true}
 		}
 		return jobDoneMsg{text: fmt.Sprintf("sent to light slot %d, %d values verified; backup %s", job.Slot, n, filepath.Base(path)),
-			backup: path, slot: job.Slot}
+			backup: path, slot: job.Slot, sent: true}
 	}
 }
 

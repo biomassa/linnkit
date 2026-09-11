@@ -168,8 +168,8 @@ func (m Model) exportKey(k string) (tea.Model, tea.Cmd) {
 		case len(files) == 0:
 			m.status = "export: nothing to write"
 		default:
-			m.status = fmt.Sprintf("export: %d files written, %d already up to date, %d scales skipped; in Aalto: the KEY module's scale menu",
-				n, len(files)-n, skipped)
+			m.status = fmt.Sprintf("export: %d files written, %d already up to date, %d scales skipped; in Aalto: KEY scale menu > %s",
+				n, len(files)-n, skipped, filepath.Base(m.exportDir()))
 		}
 		m.overlay = noOverlay
 	}
@@ -179,7 +179,7 @@ func (m Model) exportKey(k string) (tea.Model, tea.Cmd) {
 func (m Model) exportLines() []string {
 	files, rows := m.exportPlan()
 	out := []string{"",
-		" " + labelStyle.Render("folder  ") + m.exportDir() + dimStyle.Render("   (Aalto, Kaivo and other Madrona Labs synths)"),
+		" " + labelStyle.Render("folder  ") + m.exportDir() + dimStyle.Render("   (Aalto, Kaivo and other Madrona Labs synths; subfolders are menus)"),
 		" " + labelStyle.Render("scales  ") + map[bool]string{false: "the loaded scale", true: "every scale in the list (filter with / first)"}[m.exportAll] +
 			dimStyle.Render("   a toggles"),
 		"",
