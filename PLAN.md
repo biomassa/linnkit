@@ -89,7 +89,7 @@ Rules:
 
 1. **Picker:** scale folders, search by name, description, size and class, with a one-line summary per file.
 2. **Scale:** the description (contents: D1).
-3. **Layout:** ranked candidates, a grid preview in the style of `tui-mockup.py`, and options: row offset, low note, root MIDI note.
+3. **Layout:** ranked candidates, a grid preview in the style of `tui-mockup.py`, and options: row offset, low note, root MIDI note, and bend range (for unequal steps, choices with their effect; D7).
 4. **Lights:** scheme and palette editor, previewed on the grid.
 5. **Send:**
    - pick a light slot (0–2)
@@ -118,36 +118,29 @@ Rules:
 - Corpus test: parse every `.scl` on disk and report warnings.
 - Device: fake-port message logs; a manual checklist on the real device (readback after every send).
 
-## Open decisions
+## Decisions (2026-09-11)
 
-Each has options; ★ marks my recommendation.
-
-- **D1 Scale description contents:**
-  - degree table (cents, ratio, step, nearest 12-TET) ★
-  - structure summary (class, steps, MOS pattern) ★
-  - JI analysis (prime/odd limit, nearest ratios) ★
-  - interval matrix
+- **D1 Scale description:** all four views.
+  - Degree table: cents, ratio, step, nearest 12-TET ± cents.
+  - Structure summary: size, period, step sizes, class (equal, near-equal, MOS with its LLsLs pattern, irregular).
+  - JI analysis: prime and odd limit; nearest simple ratios for cents scales.
+  - Interval matrix.
 - **D2 Layout generators in v1:**
-  - uniform row offset aimed at target intervals ★
-  - generator-based for MOS scales ★
-  - no-overlap
-  - per-row manual
+  - uniform row offset aimed at target intervals
+  - generator-based for MOS scales
+  - no overlap
+
+  Per-row manual rows come later.
 - **D3 Light schemes in v1:**
-  - pitch-class palette (a color per degree, saved per scale) ★
-  - just-interval families ★
+  - pitch-class palette (a color per degree, saved per scale)
+  - just-interval families
   - MOS step pattern
   - root and period only
-- **D4 Root mapping:**
-  - degree 0 = MIDI 60 = 261.63 Hz, adjustable ★
-  - reference A = 440 Hz
-  - ask each time
-- **D5 App data location:** `~/.config/linnkit` ★ or inside the project.
-- **D6 Edge cases in v1:**
-  - Non-ascending scales: keep the file's order and warn ★, or sort.
-  - More than 128 notes: describe only ★.
-  - Non-octave periods: layout and lights work per period ★.
-- **D7 Bend range for non-equal scales:**
-  - one pad = the average step, and suggest Quantize ★
-  - one pad = the smallest step
-  - leave it to you
-- **D8 `SCL/` in git:** commit your curated files ★, or gitignore them.
+- **D4 Root mapping:** degree 0 = MIDI 60 = 261.63 Hz by default. The root note and reference frequency can be edited per scale. The app writes a matching `.kbm` when a synth needs one.
+- **D5 App data:** `~/.config/linnkit` (config, app presets, per-scale settings).
+- **D6 Edge cases:**
+  - Non-octave periods: supported; layouts and lights work per period.
+  - Non-ascending scales: keep the file's order and show a warning.
+  - More than 128 notes: described only; layouts limited to what fits in MIDI 0–127.
+- **D7 Bend range for unequal steps:** your choice. The app shows the options (average step, smallest step, the Quantize and Quant Hold settings) and their effect; it doesn't pick one.
+- **D8 `SCL/`:** committed; the files are test fixtures.
