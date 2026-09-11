@@ -10,14 +10,22 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "describe" {
+		os.Exit(runDescribe(os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage:")
+		fmt.Fprintln(os.Stderr, "  linnkit describe [--matrix] [--tol cents] FILE...")
+		fmt.Fprintln(os.Stderr, "  linnkit --version")
+	}
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Println("linnkit", version)
 		return
 	}
-
-	fmt.Fprintln(os.Stderr, "linnkit: nothing to run yet (see PLAN.md)")
+	flag.Usage()
 	os.Exit(2)
 }
