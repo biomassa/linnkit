@@ -8,6 +8,10 @@ linnkit works with all types of scale: just intonation, equal divisions (EDO), n
 
 linnkit does not write `.scl` files. It writes `.kbm` files only for synths that need them.
 
+## AI-assisted development
+
+linnkit was made with AI-assisted development. An AI coding assistant helped to write the code and the documentation.
+
 ## Requirements
 
 - macOS.
