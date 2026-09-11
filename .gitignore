@@ -1,0 +1,12 @@
+# private references and notes (kept locally)
+reference/
+refs/
+
+# build output
+/bin/
+/dist/
+*.test
+*.out
+
+# macOS
+.DS_Store

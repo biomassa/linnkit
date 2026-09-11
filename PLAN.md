@@ -1,0 +1,144 @@
+# linnkit: development plan
+
+Draft 1, 2026-09-11. A terminal app for mapping Scala scales onto the LinnStrument.
+
+## Goal (v1)
+
+1. Pick an `.scl` file from `SCL/` or from extra folders you add.
+2. Show what's in the scale, in readable form.
+3. Suggest LinnStrument layouts and light schemes that fit the scale, with options you control: colors per pitch class, row offset in steps, and so on.
+4. Never write `.scl` files. Write `.kbm` files only when a synth needs one.
+5. Send the layout and lights to the LinnStrument, and store them in a light slot and a preset you pick.
+
+It must handle any Scala file: just intonation, EDO, non-EDO, irregular.
+
+Tier 2, after v1: control most LinnStrument settings.
+
+## Decided
+
+| Topic | Decision |
+|---|---|
+| Stack | Go 1.27 (installed), Bubble Tea + Bubbles + Lip Gloss |
+| MIDI | gomidi v2 + `rtmididrv` (RtMidi through C bindings; the Xcode command-line tools are present) |
+| Project | `~/code/linnkit`, git, `SCL/` subfolder inside, extra scale folders configurable |
+| Scala parsing | our own parser: lenient, keeps exact ratios, reports problems |
+| Presets | app presets (JSON on the Mac, pushed on demand) + guided save into a device memory |
+| Reference | the Python scripts in Dropbox/Linnstrument; their outputs become test cases |
+
+## Hard constraints (firmware 2.3.4, checked in source)
+
+- Pad note = row start + (col − 1). Columns are always +1 MIDI note. Notes outside 0–127 are clamped, not skipped.
+- Row starts can be anything: Guitar mode, NRPN 227 = 13, rows via NRPN 263–270.
+- Light slots:
+  - 3 custom slots. CC20/21/22 paint pads, CC23 saves.
+  - A slot is shown with NRPN 247 = 9 + n.
+  - Patterns can't be read back, so the app keeps its own copy.
+- Preset memories (6):
+  - Can be loaded over MIDI (NRPN 243), but only saved by holding the pad.
+  - Loading doesn't refresh the custom lights; the app re-sends NRPN 247 afterwards.
+- Settings changed by NRPN reach flash only when `storeSettings()` runs. CC23 triggers it.
+- There's no NRPN for the main-channel on/off flag.
+- In MPE state the Bend Range is sent to the synth (RPN 0).
+- Slides are exact only when all steps are equal (one pad = 1/BendRange of full bend).
+- NRPN 299 reads any setting back. `midi.md` has some values wrong; the source is authoritative.
+
+## Scala files seen
+
+- 5,114 unique files in the five12 archive, plus 10 in `SCL/`.
+- Sizes: median 12, 99% ≤ 80, max 579. 17 files have more than 128 notes.
+- Periods: 4,348 octave, 90 tritave, 676 other (stretched octaves or non-octave periods).
+- 202 equal, 605 with exactly two step sizes, 182 not ascending or with a degree ≤ 0.
+- `er301/scala/scl` holds 4,802 empty (0-byte) files. Handle cleanly.
+- Your `SCL/`:
+  - 22edo and 31-edo: equal.
+  - Seven JI files: near-equal or irregular, 7–17 notes.
+  - ji_9: two step sizes but effectively equal.
+  - ji_8coh and ji_9coh: every step a different size.
+
+## Architecture
+
+```
+cmd/linnkit/          main
+internal/scala/       parse .scl/.kbm (warnings, exact ratios); write .kbm
+internal/theory/      cents/ratios, classification (equal, near-equal, MOS, irregular),
+                      JI analysis (prime/odd limit, nearest ratios), interval matrix,
+                      MOS detection and generators
+internal/layout/      grid model (25x8 pads + control column), candidate generators, scoring
+internal/lights/      schemes -> 25x8 colors, per-degree palettes
+internal/device/      ports, NRPN/RPN/CC encoding, parameter table, readback,
+                      backup/restore, send layout/lights, preset load + slot refresh
+internal/store/       app config (scale roots), app presets, per-scale settings (JSON)
+internal/tui/         screens
+testdata/             golden grids, fake-port message logs
+```
+
+Rules:
+- `scala`, `theory`, `layout` and `lights` have no terminal or MIDI dependencies. They're tested without hardware.
+- `device` is tested against a fake port that records messages. Real-device checks follow a written checklist.
+
+## Screens (v1)
+
+1. **Picker:** scale folders, search by name, description, size and class, with a one-line summary per file.
+2. **Scale:** the description (contents: D1).
+3. **Layout:** ranked candidates, a grid preview in the style of `tui-mockup.py`, and options: row offset, low note, root MIDI note.
+4. **Lights:** scheme and palette editor, previewed on the grid.
+5. **Send:**
+   - pick a light slot (0–2)
+   - push the layout and settings
+   - read back and show differences
+   - save as an app preset
+   - guided save to a device memory ("hold pad N")
+6. **Device:** connection, read-back status.
+
+## Milestones
+
+| | Scope | Done when |
+|---|---|---|
+| M0 | Repo, `go.mod`, Makefile, lint, test harness | `make test` passes |
+| M1 | `scala` + `theory` | all 5,124 files parse without crashing; a classification report matches expectations; the SCL files are described correctly |
+| M2 | `layout` + `lights` + a CLI that prints text grids | the 31-EDO grids match the Python scripts exactly |
+| M3 | `device` | fake-port logs match the Python message sequences; send and readback work on the device |
+| M4 | TUI: picker → scale → layout → lights → send | full flow works on the device |
+| M5 | App presets, guided save, `.kbm` export, polish | presets round-trip; `.kbm` loads in Aalto |
+| Tier 2 | Most LinnStrument settings | tbd |
+
+## Testing
+
+- Unit tests for the math (cents, ratios, limits, MOS detection).
+- Golden files for grids and light patterns.
+- Corpus test: parse every `.scl` on disk and report warnings.
+- Device: fake-port message logs; a manual checklist on the real device (readback after every send).
+
+## Open decisions
+
+Each has options; ★ marks my recommendation.
+
+- **D1 Scale description contents:**
+  - degree table (cents, ratio, step, nearest 12-TET) ★
+  - structure summary (class, steps, MOS pattern) ★
+  - JI analysis (prime/odd limit, nearest ratios) ★
+  - interval matrix
+- **D2 Layout generators in v1:**
+  - uniform row offset aimed at target intervals ★
+  - generator-based for MOS scales ★
+  - no-overlap
+  - per-row manual
+- **D3 Light schemes in v1:**
+  - pitch-class palette (a color per degree, saved per scale) ★
+  - just-interval families ★
+  - MOS step pattern
+  - root and period only
+- **D4 Root mapping:**
+  - degree 0 = MIDI 60 = 261.63 Hz, adjustable ★
+  - reference A = 440 Hz
+  - ask each time
+- **D5 App data location:** `~/.config/linnkit` ★ or inside the project.
+- **D6 Edge cases in v1:**
+  - Non-ascending scales: keep the file's order and warn ★, or sort.
+  - More than 128 notes: describe only ★.
+  - Non-octave periods: layout and lights work per period ★.
+- **D7 Bend range for non-equal scales:**
+  - one pad = the average step, and suggest Quantize ★
+  - one pad = the smallest step
+  - leave it to you
+- **D8 `SCL/` in git:** commit your curated files ★, or gitignore them.
