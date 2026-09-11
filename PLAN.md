@@ -20,7 +20,8 @@ Tier 2, after v1: control most LinnStrument settings.
 |---|---|
 | Stack | Go 1.27 (installed), Bubble Tea + Bubbles + Lip Gloss |
 | MIDI | gomidi v2 + `rtmididrv` (RtMidi through C bindings; the Xcode command-line tools are present) |
-| Project | `~/code/linnkit`, git, `SCL/` subfolder inside, extra scale folders configurable |
+| Project | `~/code/linnkit`, git, `SCL/` subfolder inside |
+| Scale folders | the project `SCL/` and `~/SCL`, each when present; `--scales` overrides both; more folders configurable in M5 |
 | Scala parsing | our own parser: lenient, keeps exact ratios, reports problems |
 | Presets | app presets (JSON on the Mac, pushed on demand) + guided save into a device memory |
 | Reference | the Python scripts in Dropbox/Linnstrument; their outputs become test cases |
@@ -85,6 +86,15 @@ Rules:
 - `scala`, `theory`, `layout` and `lights` have no terminal or MIDI dependencies. They're tested without hardware.
 - `device` is tested against a fake port that records messages. Real-device checks follow a written checklist.
 
+## UI decisions (M4, 2026-09-11)
+
+- One full-screen dashboard rather than tabs:
+  - Panes: Scales, Scale, Layout, Lights, Grid, Send.
+  - Overlays: interval matrix, full degree table, palette editor, send confirmation. Big views scroll or open as overlays, so nothing is cut.
+  - Minimum 160×50; smaller windows get an "enlarge" message.
+- Keys: arrows to move within a pane, Tab or Left/Right to switch panes, Enter to select. Letters run commands and are always listed in the footer.
+- Build a working prototype first, then adjust.
+
 ## Screens (v1)
 
 1. **Picker:** scale folders, search by name, description, size and class, with a one-line summary per file.
@@ -97,7 +107,13 @@ Rules:
    - read back and show differences
    - save as an app preset
    - guided save to a device memory ("hold pad N")
-6. **Device:** connection, read-back status.
+6. **Synth** (a pane under LIGHTS):
+   - Pick a synth profile: Aalto/Kaivo, Pigments, Surge XT, Plasmonic, Cypher2, Ableton built-ins, Bitwig built-ins/Grid, legacy non-MPE, Generic.
+   - Set the synth's per-note bend range S among the values it allows.
+   - The pane shows the LinnStrument Bend Range B = 100·S / target step (the step for equal scales, the average step otherwise), cents per pad, the error, and the largest step error.
+   - "Configure MIDI" (on by default) sends B. Legacy synths get One Channel mode.
+   - Each profile shows its tuning method and whether its values are verified.
+7. **Device:** connection, read-back status.
 7. **Export to Madrona Labs plugins:**
    - Copy the selected `.scl` files unchanged into the Madrona Labs Scales folder, in a `linnkit/` subfolder so they don't mix with other scales.
    - Write a matching `.kbm` next to each one: degree 0 = root MIDI note (D4), every degree listed. Aalto ignores a size-0 map and falls back to A4.

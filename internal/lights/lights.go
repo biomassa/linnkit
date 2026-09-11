@@ -24,6 +24,9 @@ const (
 	Pink    Color = 11
 )
 
+// Palette is every color a pad can be lit in (CC22 1-11; 7 is black, i.e. off).
+var Palette = []Color{Red, Yellow, Green, Cyan, Blue, Magenta, White, Orange, Lime, Pink}
+
 var colorNames = map[Color]string{Off: "off", Red: "red", Yellow: "yellow", Green: "green", Cyan: "cyan",
 	Blue: "blue", Magenta: "magenta", White: "white", Orange: "orange", Lime: "lime", Pink: "pink"}
 
@@ -44,17 +47,38 @@ func ParseColor(s string) (Color, error) {
 	return Off, fmt.Errorf("unknown color %q", s)
 }
 
-// rgb approximates the LED colors for terminal previews.
-var rgb = map[Color][3]uint8{Off: {40, 40, 40}, Red: {224, 52, 47}, Yellow: {235, 215, 60}, Green: {63, 191, 74},
-	Cyan: {60, 200, 220}, Blue: {59, 108, 240}, Magenta: {210, 63, 210}, White: {239, 239, 239},
-	Orange: {245, 150, 40}, Lime: {170, 230, 60}, Pink: {245, 130, 190}}
+// duty is each color's red, green and blue on-time, as the firmware drives the
+// LEDs (ls_leds.ino 340-403): every channel is only on or off, and white,
+// orange, lime and pink alternate between two base colors on every other
+// refresh (white: R+G+B / G+B, orange: R+G / R, lime: R+G / G, pink: R+B / R+G).
+// By this math white is cyan-tinted and pink is salmon; the closest pairs are
+// white/cyan, lime/yellow and orange/yellow (not yet checked by eye).
+var duty = map[Color][3]float64{
+	Red: {1, 0, 0}, Yellow: {1, 1, 0}, Green: {0, 1, 0}, Cyan: {0, 1, 1}, Blue: {0, 0, 1}, Magenta: {1, 0, 1},
+	White: {0.5, 1, 1}, Orange: {1, 0.5, 0}, Lime: {0.5, 1, 0}, Pink: {1, 0.5, 0.5},
+}
 
-// RGB returns an approximation of the LED color.
+// RGB returns the color for terminal previews, from the firmware's channel mix.
+// Unlit pads show as dark grey.
 func (c Color) RGB() [3]uint8 {
-	if v, ok := rgb[c]; ok {
-		return v
+	d, ok := duty[c]
+	if !ok {
+		return [3]uint8{40, 40, 40}
 	}
-	return rgb[Off]
+	var out [3]uint8
+	for i, v := range d {
+		out[i] = uint8(20 + 235*v)
+	}
+	return out
+}
+
+// Light reports whether preview text on this color should be dark.
+func (c Color) Light() bool {
+	switch c {
+	case White, Yellow, Lime, Green, Cyan, Orange, Pink:
+		return true
+	}
+	return false
 }
 
 // Swatch is how one scale degree is shown.
@@ -118,7 +142,7 @@ func (s Surface) ANSI() string {
 		for _, p := range s[row] {
 			c := p.Color.RGB()
 			fg := [3]uint8{255, 255, 255}
-			if p.Color == White || p.Color == Yellow || p.Color == Lime || p.Color == Green || p.Color == Cyan {
+			if p.Color.Light() {
 				fg = [3]uint8{20, 20, 20}
 			}
 			label := p.Label

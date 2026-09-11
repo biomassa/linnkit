@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,7 +11,6 @@ import (
 	"time"
 
 	"github.com/biomassa/linnkit/internal/device"
-	"github.com/biomassa/linnkit/internal/layout"
 )
 
 const readTimeout = 3 * time.Second
@@ -71,10 +68,10 @@ func runDevice(args []string, stdout, stderr io.Writer) int {
 				nums = append(nums, n)
 			}
 		}
-		values, err := d.Read(nums, readTimeout)
+		values, err := d.ReadRetry(nums, readTimeout, 1)
 		writeValues(stdout, values)
 		if len(values) == 0 {
-			fmt.Fprintln(stderr, "error: the LinnStrument did not answer; if it is asleep, touch a pad to wake it")
+			fmt.Fprintln(stderr, "error:", device.ErrNoAnswer)
 			return 1
 		}
 		if err != nil {
@@ -86,6 +83,10 @@ func runDevice(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		snap, err := d.Backup(readTimeout)
+		if len(snap.Values) == 0 {
+			fmt.Fprintln(stderr, "error:", device.ErrNoAnswer)
+			return 1
+		}
 		if err != nil {
 			fmt.Fprintln(stderr, "warning:", err)
 		}
@@ -145,7 +146,6 @@ func runSend(args []string, stdout, stderr io.Writer) int {
 	perNote := fs.String("per-note", "2-16", "with --configure: per-note channels, e.g. 2-16 or 2-5")
 	bend := fs.Int("bend", 0, "with --configure: LinnStrument Bend Range (0 = number of scale degrees, if 1-96)")
 	mpe := fs.Bool("mpe", false, "with --configure: MPE state instead of plain Channel Per Note")
-	noBackup := fs.Bool("no-backup", false, "skip the settings backup before sending")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -161,24 +161,11 @@ func runSend(args []string, stdout, stderr io.Writer) int {
 	}
 	writeSurface(stdout, r, g, false)
 
-	defer device.CloseDriver()
-	d, err := openDevice(*port)
-	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
-		return 1
+	job := device.Job{Surface: r.surface, Slot: *slot}
+	if *sendLayout || *configure {
+		l := r.layout
+		job.Layout = &l
 	}
-	defer d.Close()
-
-	if !*noBackup {
-		path, err := backupNow(d)
-		if err != nil {
-			fmt.Fprintln(stderr, "error: backup failed, nothing sent:", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "\nbackup: %s (restore with: linnkit device restore %s)\n", path, path)
-	}
-
-	expect := map[int]int{device.ParamNoteLights: device.NoteLightsCustom0 + *slot}
 	if *configure {
 		cfg := device.ChannelConfig{Main: 1, Bend: *bend, MPE: *mpe}
 		if cfg.PerNote, err = parseChannels(*perNote); err != nil {
@@ -188,86 +175,29 @@ func runSend(args []string, stdout, stderr io.Writer) int {
 		if n := r.analysis.Structure.Size; cfg.Bend == 0 && n <= 96 {
 			cfg.Bend = n
 		}
-		if err := d.Configure(cfg); err != nil {
-			fmt.Fprintln(stderr, "error:", err)
-			return 1
-		}
-		if cfg.Bend > 0 {
-			expect[device.ParamBendRange], expect[device.ParamBendRange+device.RightSplit] = cfg.Bend, cfg.Bend
-		}
+		job.Config = &cfg
 	}
-	if *sendLayout || *configure {
-		if err := d.SendLayout(r.layout); err != nil {
-			fmt.Fprintln(stderr, "error:", err)
-			return 1
-		}
-		expect[device.ParamRowOffset] = device.RowOffsetGuitar
-		for row := range layout.Rows {
-			expect[device.ParamGuitarRow1+row] = max(0, min(127, r.layout.RowStart[row]))
-		}
-	}
-	if err := d.PaintLights(r.surface, *slot); err != nil {
+
+	defer device.CloseDriver()
+	d, err := openDevice(*port)
+	if err != nil {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "sent; lights saved to slot %d\n", *slot)
-	return verify(d, expect, stdout, stderr)
-}
-
-// verify reads back the expected values and reports differences.
-func verify(d *device.Device, expect map[int]int, stdout, stderr io.Writer) int {
-	var nums []int
-	for n := range expect {
-		nums = append(nums, n)
-	}
-	slices.Sort(nums)
-	// CC23 has just written settings to flash; the device drops queries while busy.
-	time.Sleep(500 * time.Millisecond)
-	got, err := d.ReadRetry(nums, readTimeout, 2)
+	defer d.Close()
+	path, err := d.SaveBackup(readTimeout)
 	if err != nil {
-		fmt.Fprintln(stderr, "verify:", err)
-	}
-	bad := 0
-	for _, n := range nums {
-		if v, ok := got[n]; ok && v != expect[n] {
-			fmt.Fprintf(stdout, "MISMATCH %s: device %d, expected %d\n", device.Describe(n), v, expect[n])
-			bad++
-		}
-	}
-	if bad > 0 || err != nil {
+		fmt.Fprintln(stderr, "error: backup failed, nothing sent:", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "verified %d values by readback\n", len(nums))
-	return 0
-}
-
-func backupNow(d *device.Device) (string, error) {
-	home, err := os.UserHomeDir()
+	fmt.Fprintf(stdout, "\nbackup: %s (restore with: linnkit device restore %s)\n", path, path)
+	n, err := d.Run(job, readTimeout)
 	if err != nil {
-		return "", err
+		fmt.Fprintln(stderr, "error:", err)
+		return 1
 	}
-	dir := filepath.Join(home, ".config", "linnkit", "backups")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	snap, err := d.Backup(readTimeout)
-	if len(snap.Values) == 0 {
-		return "", fmt.Errorf("the LinnStrument did not answer; if it is asleep, touch a pad to wake it (%v)", firstLine(err))
-	}
-	path := filepath.Join(dir, snap.Taken.Format("2006-01-02T15-04-05")+".json")
-	return path, snap.Save(path)
-}
-
-// firstLine shortens long errors (such as a list of 200 missing parameters).
-func firstLine(err error) string {
-	if err == nil {
-		return ""
-	}
-	s := err.Error()
-	if len(s) > 80 {
-		s = s[:77] + "..."
-	}
-	return s
+	fmt.Fprintf(stdout, "sent; lights saved to slot %d; verified %d values by readback\n", *slot, n)
+	return 0
 }
 
 func parseChannels(spec string) ([]int, error) {

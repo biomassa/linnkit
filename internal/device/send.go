@@ -57,6 +57,9 @@ type ChannelConfig struct {
 	// the device then sends its bend range to the synth (RPN 0). Per-note
 	// channels must be Main+1..Main+N with Main = 1.
 	MPE bool
+	// OneChannel sets One Channel mode on Main, for synths without per-note
+	// pitch bend. PerNote and MPE are ignored.
+	OneChannel bool
 }
 
 // Configure sets MIDI mode, channels, bend range and Y/Z expression on both
@@ -68,6 +71,9 @@ func (d *Device) Configure(c ChannelConfig) error {
 		if ch != c.Main {
 			perNote[ch] = true
 		}
+	}
+	if c.OneChannel {
+		c.MPE = false
 	}
 	if c.MPE {
 		for ch := range perNote {
@@ -85,7 +91,9 @@ func (d *Device) Configure(c ChannelConfig) error {
 	type set struct{ param, value int }
 	for _, base := range []int{0, RightSplit} {
 		var sets []set
-		if !c.MPE {
+		if c.OneChannel {
+			sets = append(sets, set{ParamMIDIMode, 0}, set{ParamMainChannel, c.Main})
+		} else if !c.MPE {
 			sets = append(sets, set{ParamMIDIMode, 1}, set{ParamMainChannel, c.Main})
 			for ch := 1; ch <= 16; ch++ {
 				v := 0
