@@ -45,6 +45,23 @@ func TestJIFamilies31EDOMatchesPython(t *testing.T) {
 	}
 }
 
+// The 31-EDO note-name grid must match reference/linnstrument_edo.py --edo 31.
+func TestNoteNames31EDOMatchesPython(t *testing.T) {
+	a := analyze(t, "31-edo")
+	sw := NoteNames(a, Magenta, White, Blue, Green)
+	got := Paint(layout.Uniform(10, 30), 60, sw).Plain()
+	want, err := os.ReadFile("testdata/31edo_names_python.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, w := trimLines(got), trimLines(string(want)); !slices.Equal(g, w) {
+		t.Errorf("grid differs from the Python reference\n got:\n%s\nwant:\n%s", strings.Join(g, "\n"), strings.Join(w, "\n"))
+	}
+	if sw[2].Color != Blue || sw[3].Color != Green || sw[5].Color != White || sw[1].Color != Off {
+		t.Errorf("C# blue, Db green, D white, quarter tone off: %v %v %v %v", sw[2], sw[3], sw[5], sw[1])
+	}
+}
+
 func TestJIFamiliesExactRatios(t *testing.T) {
 	a := analyze(t, "ji_13") // degree 6 is 45/32 (5-limit), degree 7 is 64/45 (5-limit)
 	sw := JIFamilies(a, 7, 0)

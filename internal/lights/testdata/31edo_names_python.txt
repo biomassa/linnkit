@@ -1,0 +1,8 @@
+row 8  .  E  Fb E# F  .  F# Gb .  G  .  G# Ab .  A  .  A# Bb .  B  Cb B# C  .  C# 
+row 7  B# C  .  C# Db .  D  .  D# Eb .  E  Fb E# F  .  F# Gb .  G  .  G# Ab .  A  
+row 6  G# Ab .  A  .  A# Bb .  B  Cb B# C  .  C# Db .  D  .  D# Eb .  E  Fb E# F  
+row 5  E  Fb E# F  .  F# Gb .  G  .  G# Ab .  A  .  A# Bb .  B  Cb B# C  .  C# Db 
+row 4  C  .  C# Db .  D  .  D# Eb .  E  Fb E# F  .  F# Gb .  G  .  G# Ab .  A  .  
+row 3  Ab .  A  .  A# Bb .  B  Cb B# C  .  C# Db .  D  .  D# Eb .  E  Fb E# F  .  
+row 2  Fb E# F  .  F# Gb .  G  .  G# Ab .  A  .  A# Bb .  B  Cb B# C  .  C# Db .  
+row 1  .  C# Db .  D  .  D# Eb .  E  Fb E# F  .  F# Gb .  G  .  G# Ab .  A  .  A# 

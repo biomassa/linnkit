@@ -98,6 +98,10 @@ Rules:
    - save as an app preset
    - guided save to a device memory ("hold pad N")
 6. **Device:** connection, read-back status.
+7. **Export to Madrona Labs plugins:**
+   - Copy the selected `.scl` files unchanged into the Madrona Labs Scales folder, in a `linnkit/` subfolder so they don't mix with other scales.
+   - Write a matching `.kbm` next to each one: degree 0 = root MIDI note (D4), every degree listed. Aalto ignores a size-0 map and falls back to A4.
+   - Target folder: `~/Music/Madrona Labs/Scales/linnkit/` (D9). This is the folder Aalto 1.9.5 reads; `~/Library/Audio/Presets/Madrona Labs/Scales` is not used.
 
 ## Milestones
 
@@ -144,3 +148,5 @@ Rules:
   - More than 128 notes: described only; layouts limited to what fits in MIDI 0–127.
 - **D7 Bend range for unequal steps:** your choice. The app shows the options (average step, smallest step, the Quantize and Quant Hold settings) and their effect; it doesn't pick one.
 - **D8 `SCL/`:** committed; the files are test fixtures.
+- **D9 Madrona Labs export:** `~/Music/Madrona Labs/Scales/linnkit/`, with a `.kbm` per scale listing every degree.
+- **Note-name lights:** added as a user-selectable scheme (`names`), a port of `linnstrument_edo.py`.

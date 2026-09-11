@@ -171,6 +171,44 @@ func MOSPattern(n int, m MOSChoice, root, in, rest Color) []Swatch {
 	return sw
 }
 
+var fifthsNames = [7]string{"F", "C", "G", "D", "A", "E", "B"} // F is one fifth below C
+
+// NoteNames colors degrees by meantone note name: the chain of fifths from the
+// degree nearest 3/2, with C on the root. Sharps are naturals plus the
+// chromatic step (7 fifths - 4 periods, counted in degrees), flats minus it.
+// Precedence: root, naturals, sharps, flats; the rest are off. This matches
+// reference/linnstrument_edo.py for EDOs.
+func NoteNames(a *theory.Analysis, root, natural, sharp, flat Color) []Swatch {
+	n := len(a.Degrees)
+	sw := make([]Swatch, n)
+	fifth, _ := nearestDegree(a, 1200*math.Log2(1.5))
+	if fifth <= 0 {
+		sw[0] = Swatch{root, "C"}
+		return sw
+	}
+	mod := func(x int) int { return (x%n + n) % n }
+	set := func(d int, s Swatch) {
+		if sw[d] == (Swatch{}) {
+			sw[d] = s
+		}
+	}
+	set(0, Swatch{root, "C"})
+	naturals := make([]int, len(fifthsNames))
+	for i, name := range fifthsNames {
+		naturals[i] = mod((i - 1) * fifth)
+		set(naturals[i], Swatch{natural, name})
+	}
+	if apotome := 7*fifth - 4*n; mod(apotome) != 0 {
+		for i, name := range fifthsNames {
+			set(mod(naturals[i]+apotome), Swatch{sharp, name + "#"})
+		}
+		for i, name := range fifthsNames {
+			set(mod(naturals[i]-apotome), Swatch{flat, name + "b"})
+		}
+	}
+	return sw
+}
+
 func gcd(a, b int64) int64 {
 	for b != 0 {
 		a, b = b, a%b
