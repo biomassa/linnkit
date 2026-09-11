@@ -32,11 +32,14 @@ func TestPlan31EDO(t *testing.T) {
 	}
 }
 
-func TestPlanLiveBuiltinsCannotReach31EDO(t *testing.T) {
-	// S fixed at 48 would need B = 124; the LinnStrument stops at 96.
-	p := Best(profile("Ableton Live built-ins"), equal(31, 1200), 1200)
-	if p.LinnBend != 96 || math.Abs(p.PadCents-50) > 1e-9 {
-		t.Errorf("Live: %+v", p)
+func TestPlanLiveTuningCountsSteps(t *testing.T) {
+	// Under Live's Tuning System, bend is in scale steps: B = S = 48 for 31-EDO
+	// (in semitones it would need B = 124, past the LinnStrument's 96).
+	for _, name := range []string{"Ableton Live built-ins", "Live tuning + MPE plugin"} {
+		p := Best(profile(name), equal(31, 1200), 1200)
+		if !p.InSteps || p.LinnBend != 48 || p.Error != 0 {
+			t.Errorf("%s: %+v", name, p)
+		}
 	}
 }
 

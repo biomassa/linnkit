@@ -102,6 +102,7 @@ Rules:
 3. **Layout:** ranked candidates, a grid preview in the style of `tui-mockup.py`, and options: row offset, low note, root MIDI note, and bend range (for unequal steps, choices with their effect; D7).
 4. **Lights:** scheme and palette editor, previewed on the grid.
 5. **Send:**
+   - or send the factory 12-TET layout and note lights instead of the scale (no light slot touched)
    - pick a light slot (0–2)
    - push the layout and settings
    - read back and show differences
@@ -115,9 +116,9 @@ Rules:
    - Each profile shows its tuning method and whether its values are verified.
 7. **Device:** connection, read-back status.
 7. **Export to Madrona Labs plugins:**
-   - Copy the selected `.scl` files unchanged into the Madrona Labs Scales folder, in a `linnkit/` subfolder so they don't mix with other scales.
+   - Copy the selected `.scl` files unchanged into the Madrona Labs Scales folder.
    - Write a matching `.kbm` next to each one: degree 0 = root MIDI note (D4), every degree listed. Aalto ignores a size-0 map and falls back to A4.
-   - Target folder: `~/Music/Madrona Labs/Scales/linnkit/` (D9). This is the folder Aalto 1.9.5 reads; `~/Library/Audio/Presets/Madrona Labs/Scales` is not used.
+   - Target folder: `~/Music/Madrona Labs/Scales/` itself, no subfolder (D9, changed 2026-09-11). This is the folder Aalto 1.9.5 reads; `~/Library/Audio/Presets/Madrona Labs/Scales` is not used. Same-named files there are replaced, and the overlay lists them before `y`.
 
 ## Milestones
 
@@ -129,6 +130,18 @@ Rules:
 | M3 | `device` | fake-port logs match the Python message sequences; send and readback work on the device |
 | M4 | TUI: picker → scale → layout → lights → send | full flow works on the device |
 | M5 | App presets, guided save, `.kbm` export, polish | presets round-trip; `.kbm` loads in Aalto |
+
+M5 order (2026-09-11):
+1. Store. Done:
+   - `~/.config/linnkit` holds config (extra scale folders via `linnkit folders`, last synth), per-scale settings (saved on every change), and named presets (`p` overlay).
+   - Factory 12-TET send (`f`): rows +5 from F#1, note-light pattern 0, no light slot touched.
+2. Madrona export + `.kbm`, root and reference editing (D4, D9). Done:
+   - `{ }` move the root; the reference Hz is set in the export overlay (`e`); both are saved per scale.
+   - Export writes the loaded scale or every listed scale.
+   - Files that madronalib would read differently from linnkit are skipped, with the reason.
+   - Not yet checked in Aalto itself.
+3. Palette editor: an overlay listing degrees; ↑↓ pick a degree, ←→ cycle the 10 colors, 0 turns it off; starts from the current scheme.
+4. Guided save to a device memory.
 | Tier 2 | Most LinnStrument settings | tbd |
 
 ## Testing
@@ -164,5 +177,5 @@ Rules:
   - More than 128 notes: described only; layouts limited to what fits in MIDI 0–127.
 - **D7 Bend range for unequal steps:** your choice. The app shows the options (average step, smallest step, the Quantize and Quant Hold settings) and their effect; it doesn't pick one.
 - **D8 `SCL/`:** committed; the files are test fixtures.
-- **D9 Madrona Labs export:** `~/Music/Madrona Labs/Scales/linnkit/`, with a `.kbm` per scale listing every degree.
+- **D9 Madrona Labs export:** `~/Music/Madrona Labs/Scales/` (top level, no subfolder), with a `.kbm` per scale listing every degree.
 - **Note-name lights:** added as a user-selectable scheme (`names`), a port of `linnstrument_edo.py`.

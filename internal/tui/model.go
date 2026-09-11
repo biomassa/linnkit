@@ -10,6 +10,7 @@ import (
 	"github.com/biomassa/linnkit/internal/layout"
 	"github.com/biomassa/linnkit/internal/lights"
 	"github.com/biomassa/linnkit/internal/scala"
+	"github.com/biomassa/linnkit/internal/store"
 	"github.com/biomassa/linnkit/internal/synth"
 	"github.com/biomassa/linnkit/internal/theory"
 )
@@ -41,13 +42,17 @@ const (
 	overlayHelp
 	overlayConfirmSend
 	overlayConfirmRestore
+	overlayPresets
+	overlayExport
 )
 
 // Config is how the dashboard starts.
 type Config struct {
-	ScaleDirs []string // folders searched for .scl files
-	Port      string   // MIDI port name (substring)
-	Root      int      // MIDI note of degree 0
+	ScaleDirs []string     // folders searched for .scl files
+	Port      string       // MIDI port name (substring)
+	Root      int          // MIDI note of degree 0 for scales with no saved settings
+	Store     *store.Store // app data; nil keeps nothing between runs
+	ExportDir string       // Madrona Labs export folder; empty = export.MadronaDir()
 }
 
 var (
@@ -77,7 +82,9 @@ type Model struct {
 
 	cands   []layout.Candidate
 	candSel int
-	low     int // bottom-left note chosen with [ ], -1 = from the candidate
+	low     int     // bottom-left note chosen with [ ], -1 = from the candidate
+	root    int     // MIDI note of degree 0
+	refHz   float64 // frequency of the root for exported .kbm files; 0 = 12-TET
 	lay     layout.Layout
 
 	scheme  int
@@ -96,6 +103,19 @@ type Model struct {
 	deviceInfo  string
 	restoreFrom string
 	lastBackup  string
+	factory     bool // send the factory 12-TET layout and note lights instead of the scale
+
+	saved      store.ScaleSettings // last settings written for the loaded scale
+	presets    []store.Preset
+	presetSel  int
+	naming     bool   // typing a preset name
+	name       string // the name being typed
+	confirmDel bool   // asking before deleting the selected preset
+	confirmRep bool   // asking before replacing a preset with the typed name
+
+	exportAll bool   // export every listed scale, not just the loaded one
+	typingHz  bool   // typing the reference frequency
+	hzText    string // the frequency being typed
 }
 
 // New returns the dashboard model. Sends default to scratch light slot 2.
@@ -106,9 +126,32 @@ func New(cfg Config) Model {
 	if cfg.Port == "" {
 		cfg.Port = device.DefaultPortName
 	}
-	return Model{cfg: cfg, loading: true, limitIx: 2, slot: 2, withLayout: true, withConfig: true, low: -1,
-		synthBend: synth.Profiles[0].DefaultBend,
-		status:    "loading scales", deviceInfo: "checking device"}
+	m := Model{cfg: cfg, loading: true, limitIx: 2, slot: 2, withLayout: true, withConfig: true, low: -1,
+		root: cfg.Root, synthBend: synth.Profiles[0].DefaultBend,
+		status: "loading scales", deviceInfo: "checking device"}
+	if cfg.Store != nil {
+		c, err := cfg.Store.Config()
+		if err != nil {
+			m.status = "config: " + err.Error()
+		}
+		m = m.setSynth(c.Synth, c.SynthBend)
+	}
+	return m
+}
+
+// setSynth picks the profile called name (if any) and bend range s (if allowed).
+func (m Model) setSynth(name string, s int) Model {
+	for i, p := range synth.Profiles {
+		if p.Name == name {
+			m.synthIx, m.synthBend = i, p.DefaultBend
+		}
+	}
+	for _, v := range m.profile().Allowed() {
+		if v == s {
+			m.synthBend = s
+		}
+	}
+	return m
 }
 
 // Init loads the scale list and checks the device.
@@ -139,9 +182,72 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deviceInfo = fmt.Sprintf("connected, showing light slot %d", msg.slot)
 		}
 	case tea.KeyPressMsg:
-		return m.key(msg.String())
+		next, cmd := m.key(msg.String())
+		return next.(Model).persist(), cmd
 	}
 	return m, nil
+}
+
+// settings are the loaded scale's current settings.
+func (m Model) settings() store.ScaleSettings {
+	return store.ScaleSettings{Offset: m.lay.Offset, Low: m.low, Root: m.root, RefHz: m.refHz, Scheme: schemes[m.scheme],
+		Limit: limits[m.limitIx], Synth: m.profile().Name, SynthBend: m.synthBend}
+}
+
+// persist writes the loaded scale's settings when they changed, and makes its
+// synth the default for scales with no settings yet.
+func (m Model) persist() Model {
+	if m.cfg.Store == nil || m.analysis == nil {
+		return m
+	}
+	cur := m.settings()
+	if equalSettings(cur, m.saved) {
+		return m
+	}
+	if err := m.cfg.Store.SaveScaleSettings(m.loaded, cur); err != nil {
+		m.status = "saving settings: " + err.Error()
+		return m
+	}
+	if cur.Synth != m.saved.Synth || cur.SynthBend != m.saved.SynthBend {
+		c, err := m.cfg.Store.Config()
+		if err == nil {
+			c.Synth, c.SynthBend = cur.Synth, cur.SynthBend
+			err = m.cfg.Store.SaveConfig(c)
+		}
+		if err != nil {
+			m.status = "saving config: " + err.Error()
+		}
+	}
+	m.saved = cur
+	return m
+}
+
+func equalSettings(a, b store.ScaleSettings) bool {
+	return a.Offset == b.Offset && a.Low == b.Low && a.Root == b.Root && a.RefHz == b.RefHz && a.Scheme == b.Scheme &&
+		a.Limit == b.Limit && a.Synth == b.Synth && a.SynthBend == b.SynthBend &&
+		strings.Join(a.Palette, ",") == strings.Join(b.Palette, ",")
+}
+
+// apply sets the loaded scale's layout, lights and synth from saved settings.
+func (m Model) apply(v store.ScaleSettings) Model {
+	if v.Root > 0 && v.Root != m.root {
+		m.root = v.Root
+		m.cands = layout.Candidates(m.analysis, layout.Options{Root: m.root})
+	}
+	m.refHz = v.RefHz
+	m.candSel = m.candidateWith(v.Offset)
+	m.low = v.Low
+	for i, s := range schemes {
+		if s == v.Scheme {
+			m.scheme = i
+		}
+	}
+	for i, l := range limits {
+		if l == v.Limit {
+			m.limitIx = i
+		}
+	}
+	return m.setSynth(v.Synth, v.SynthBend).paint()
 }
 
 func (m Model) key(k string) (tea.Model, tea.Cmd) {
@@ -180,7 +286,9 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 	case "c":
 		m.withConfig = !m.withConfig
 	case "e":
-		m.status = "export to Madrona Labs: planned for M5"
+		if m.analysis != nil {
+			m.overlay, m.typingHz, m.scrollY, m.scrollX = overlayExport, false, 0, 0
+		}
 	case "s":
 		if m.busy {
 			m.status = "busy"
@@ -192,6 +300,11 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 			m.busy, m.status = true, "backing up device settings"
 			return m, backupCmd(m.cfg.Port)
 		}
+	case "p":
+		return m.openPresets(), nil
+	case "f":
+		m.factory = !m.factory
+		m = m.paint()
 	case "r":
 		if !m.busy {
 			path := m.lastBackup
@@ -241,6 +354,8 @@ func (m Model) paneKey(k string) Model {
 			m.low = max(0, m.lay.RowStart[0]-1)
 		case "]":
 			m.low = min(127, m.lay.RowStart[0]+1)
+		case "{", "}":
+			m = m.moveRoot(k)
 		}
 		m = m.paint()
 	case paneLights:
@@ -285,9 +400,25 @@ func (m Model) paneKey(k string) Model {
 
 func (m Model) profile() synth.Profile { return synth.Profiles[m.synthIx] }
 
-// bendPlan is the pitch-bend setup for the loaded scale and chosen synth.
+// bendPlan is the pitch-bend setup for the loaded scale (or 12-TET in
+// factory mode) and the chosen synth.
 func (m Model) bendPlan() synth.Plan {
-	return synth.PlanFor(m.synthBend, m.analysis.Structure.Steps, m.analysis.PeriodCents)
+	if m.factory {
+		steps := make([]float64, 12)
+		for i := range steps {
+			steps[i] = 100
+		}
+		return m.profile().Plan(m.synthBend, steps, 1200)
+	}
+	return m.profile().Plan(m.synthBend, m.analysis.Structure.Steps, m.analysis.PeriodCents)
+}
+
+// shown is the layout the grid shows and a send uses.
+func (m Model) shown() layout.Layout {
+	if m.factory {
+		return device.FactoryLayout
+	}
+	return m.lay
 }
 
 func (m Model) filterKey(k string) Model {
@@ -309,6 +440,10 @@ func (m Model) filterKey(k string) Model {
 
 func (m Model) overlayKey(k string) (tea.Model, tea.Cmd) {
 	switch m.overlay {
+	case overlayPresets:
+		return m.presetKey(k), nil
+	case overlayExport:
+		return m.exportKey(k)
 	case overlayConfirmSend:
 		switch k {
 		case "y":
@@ -370,10 +505,24 @@ func (m Model) load(i int) Model {
 	}
 	m.analysis = theory.Analyze(s, theory.DefaultOptions())
 	m.loaded, m.sel = e.path, i
-	m.cands = layout.Candidates(m.analysis, layout.Options{Root: m.cfg.Root})
+	m.root, m.refHz = m.cfg.Root, 0
+	m.cands = layout.Candidates(m.analysis, layout.Options{Root: m.root})
 	m.candSel, m.low, m.tableScroll = 0, -1, 0
 	m.status = "loaded " + e.name
-	return m.paint()
+	m = m.paint()
+	m.saved = m.settings()
+	if m.cfg.Store != nil {
+		v, ok, err := m.cfg.Store.ScaleSettings(e.path)
+		switch {
+		case err != nil:
+			m.status = "settings: " + err.Error()
+		case ok:
+			m = m.apply(v)
+			m.saved = v
+			m.status = "loaded " + e.name + " with its saved settings"
+		}
+	}
+	return m
 }
 
 // paint applies the chosen layout and light scheme.
@@ -406,14 +555,27 @@ func (m Model) paint() Model {
 		sw = lights.RootOnly(n, lights.Magenta)
 		m.legend = "R root"
 	}
-	m.surface = lights.Paint(m.lay, m.cfg.Root, sw)
+	m.surface = lights.Paint(m.lay, m.root, sw)
+	if m.factory {
+		sw = make([]lights.Swatch, 12)
+		for i, name := range []string{"C", "", "D", "", "E", "F", "", "G", "", "A", "", "B"} {
+			switch {
+			case device.FactoryAccent[i]:
+				sw[i] = lights.Swatch{Color: lights.Cyan, Label: name}
+			case device.FactoryNaturals[i]:
+				sw[i] = lights.Swatch{Color: lights.Green, Label: name}
+			}
+		}
+		m.surface = lights.Paint(device.FactoryLayout, 60, sw)
+		m.legend = "factory 12-TET: rows +5 from F#1, C cyan, other naturals green (note-light pattern 0)"
+	}
 	return m
 }
 
 // job describes what a send does with the current settings.
 func (m Model) job() device.Job {
-	j := device.Job{Surface: m.surface, Slot: m.slot}
-	if m.withLayout || m.withConfig {
+	j := device.Job{Surface: m.surface, Slot: m.slot, Factory: m.factory}
+	if !m.factory && (m.withLayout || m.withConfig) {
 		l := m.lay
 		j.Layout = &l
 	}

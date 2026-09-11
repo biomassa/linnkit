@@ -36,9 +36,13 @@ type Profile struct {
 	// sends in MPE state. If it does, or if unknown, keep the LinnStrument out of
 	// MPE state (the send does: plain Channel Per Note).
 	ObeysRPN Tri
-	Tuning   string // how the synth takes a tuning
-	Verified bool   // checked on this machine or in the synth's source
-	Notes    []string
+	// HostSteps: the host retunes the synth and counts per-note bend in scale
+	// steps, not semitones (Live 12 with a Tuning System loaded). One pad of
+	// slide is then one scale degree when B = S.
+	HostSteps bool
+	Tuning    string // how the synth takes a tuning
+	Verified  bool   // checked on this machine or in the synth's source
+	Notes     []string
 }
 
 // Profiles are the built-in synths. Facts: reference/linnstrument-facts.md.
@@ -70,8 +74,17 @@ var Profiles = []Profile{
 	},
 	{
 		Name: "Ableton Live built-ins", MPE: true, BendMin: 48, BendMax: 48, DefaultBend: 48, ObeysRPN: Unknown,
-		Tuning: "Live 12 Tuning System: drop the .scl into Live's browser (Tunings)",
-		Notes:  []string{"Live needs 48 semitones per-note bend with tuning systems", "Wavetable, Meld, Drift, Sampler take MPE"},
+		HostSteps: true,
+		Tuning:    "Live 12 Tuning System: load the .scl from the Tunings section of Live's browser",
+		Notes: []string{"Wavetable, Meld, Drift, Sampler take MPE",
+			"bend in scale steps checked with a plugin (Noisy 2), assumed for the built-ins"},
+	},
+	{
+		Name: "Live tuning + MPE plugin", MPE: true, BendMin: 48, BendMax: 48, DefaultBend: 48, ObeysRPN: Unknown,
+		HostSteps: true, Verified: true,
+		Tuning: "Live 12 Tuning System retunes the plugin (for plugins without tuning, e.g. Noisy 2)",
+		Notes: []string{"plugin: MPE on, per-note bend range 48", "track: Bypass Tuning off",
+			"checked 2026-09-11 with Noisy 2 and 31-EDO: slides land on every pad"},
 	},
 	{
 		Name: "Bitwig built-ins / Grid", MPE: true, BendMin: 1, BendMax: 96, DefaultBend: 48, ObeysRPN: Unknown,
@@ -103,6 +116,7 @@ func (p Profile) Allowed() []int {
 
 // Plan is the pitch-bend setup for one scale and one synth bend range.
 type Plan struct {
+	InSteps   bool    // the host counts bend in scale steps; PadCents is then the average step
 	SynthBend int     // S: the synth's per-note bend range, semitones
 	LinnBend  int     // B: the LinnStrument Bend Range, 1-96
 	PadCents  float64 // one pad of slide: 100*S/B cents
@@ -125,12 +139,22 @@ func PlanFor(s int, steps []float64, period float64) Plan {
 	return p
 }
 
+// Plan returns the setup for this profile at synth bend s. Where the host
+// counts bend in scale steps, B = S makes one pad one degree for any scale.
+func (p Profile) Plan(s int, steps []float64, period float64) Plan {
+	if !p.HostSteps {
+		return PlanFor(s, steps, period)
+	}
+	target := period / float64(len(steps))
+	return Plan{InSteps: true, SynthBend: s, LinnBend: max(1, min(96, s)), PadCents: target, Target: target}
+}
+
 // Best returns the plan with the smallest error among the synth bend ranges the
 // profile allows; ties go to the range closest to the profile's default.
 func Best(p Profile, steps []float64, period float64) Plan {
 	var best Plan
 	for i, s := range p.Allowed() {
-		c := PlanFor(s, steps, period)
+		c := p.Plan(s, steps, period)
 		better := i == 0 || math.Abs(c.Error) < math.Abs(best.Error)-1e-9 ||
 			(math.Abs(math.Abs(c.Error)-math.Abs(best.Error)) <= 1e-9 && abs(s-p.DefaultBend) < abs(best.SynthBend-p.DefaultBend))
 		if better {

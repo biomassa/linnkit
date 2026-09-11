@@ -23,12 +23,16 @@ type Job struct {
 	Slot    int            // custom light slot 0-2
 	Layout  *layout.Layout // nil leaves the rows as they are
 	Config  *ChannelConfig // nil leaves the MIDI setup as it is
+	// Factory sends FactorySettings instead of Surface and Layout. It sends no
+	// CC23, so no light slot changes, and the settings reach flash only when
+	// the player next presses and releases a control button such as Preset.
+	Factory bool
 }
 
 // Run sends the job, then reads back what it set. It returns how many values
 // were verified; mismatches or missing answers come back as an error.
 func (d *Device) Run(j Job, timeout time.Duration) (int, error) {
-	expect := map[int]int{ParamNoteLights: NoteLightsCustom0 + j.Slot}
+	expect := map[int]int{}
 	if j.Config != nil {
 		if err := d.Configure(*j.Config); err != nil {
 			return 0, err
@@ -37,7 +41,14 @@ func (d *Device) Run(j Job, timeout time.Duration) (int, error) {
 			expect[ParamBendRange], expect[ParamBendRange+RightSplit] = j.Config.Bend, j.Config.Bend
 		}
 	}
-	if j.Layout != nil {
+	if j.Factory {
+		for _, s := range FactorySettings() {
+			if err := d.SetNRPN(s.Param, s.Value); err != nil {
+				return 0, err
+			}
+			expect[s.Param] = s.Value
+		}
+	} else if j.Layout != nil {
 		if err := d.SendLayout(*j.Layout); err != nil {
 			return 0, err
 		}
@@ -46,11 +57,14 @@ func (d *Device) Run(j Job, timeout time.Duration) (int, error) {
 			expect[ParamGuitarRow1+row] = max(0, min(127, j.Layout.RowStart[row]))
 		}
 	}
-	if err := d.PaintLights(j.Surface, j.Slot); err != nil {
-		return 0, err
+	if !j.Factory {
+		if err := d.PaintLights(j.Surface, j.Slot); err != nil {
+			return 0, err
+		}
+		expect[ParamNoteLights] = NoteLightsCustom0 + j.Slot
+		// CC23 has just written settings to flash; the device drops queries while busy.
+		time.Sleep(500 * time.Millisecond)
 	}
-	// CC23 has just written settings to flash; the device drops queries while busy.
-	time.Sleep(500 * time.Millisecond)
 	var nums []int
 	for n := range expect {
 		nums = append(nums, n)

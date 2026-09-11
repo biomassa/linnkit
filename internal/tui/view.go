@@ -69,8 +69,12 @@ func (m Model) render() string {
 	)
 	gridTitle := "GRID"
 	if m.analysis != nil {
-		lo, hi := m.lay.Span()
-		gridTitle = fmt.Sprintf("GRID  rows +%d, bottom-left MIDI %d, notes %d..%d", m.lay.Offset, m.lay.RowStart[0], lo, hi)
+		l := m.shown()
+		lo, hi := l.Span()
+		gridTitle = fmt.Sprintf("GRID  rows +%d, bottom-left MIDI %d, notes %d..%d", l.Offset, l.RowStart[0], lo, hi)
+		if m.factory {
+			gridTitle = "GRID  FACTORY 12-TET  " + gridTitle[6:]
+		}
 	}
 	bottom := joinH(
 		box(gridTitle, gridWidth, gridHeight, m.gridLines(), false),
@@ -95,8 +99,8 @@ func (m Model) header(w int) string {
 }
 
 func (m Model) footer(w int) string {
-	keys := "↑↓ move  Tab/←→ pane  Enter select  / filter  [ ] low  < > limit  0-2 slot  l layout  c config  " +
-		"s send  b backup  r restore  m matrix  t table  ? help  q quit"
+	keys := "↑↓ move  Tab pane  Enter select  / filter  0-2 slot  l layout  c config  f factory  s send  " +
+		"p presets  e export  b backup  r restore  m matrix  t table  ? help  q quit"
 	return dimStyle.Render(fit(" "+keys, w))
 }
 
@@ -204,7 +208,7 @@ func (m Model) layoutLines(h int) []string {
 	if m.low >= 0 {
 		lowNote = "set with [ ]"
 	}
-	return append(out, dimStyle.Render(fmt.Sprintf("root MIDI %d, bottom-left %d (%s)", m.cfg.Root, m.lay.RowStart[0], lowNote)))
+	return append(out, dimStyle.Render(fmt.Sprintf("root %d %s ({ }), bottom-left %d (%s)", m.root, midiName(m.root), m.lay.RowStart[0], lowNote)))
 }
 
 func (m Model) lightsLines() []string {
@@ -251,10 +255,14 @@ func (m Model) synthLines(w, h int) []string {
 			errStyle = warnStyle
 		}
 		out[1] += labelStyle.Render("  Linn bend B ") + valueStyle.Render(fmt.Sprint(pl.LinnBend))
-		out = append(out, " "+labelStyle.Render("pad ")+fmt.Sprintf("%.2f c", pl.PadCents)+
-			labelStyle.Render("  step ")+fmt.Sprintf("%.2f c", pl.Target)+
-			labelStyle.Render("  error ")+errStyle.Render(fmt.Sprintf("%+.2f c", pl.Error)))
-		if m.analysis.Structure.Class != theory.Equal {
+		if pl.InSteps {
+			out = append(out, wrapStyled("Live bends in scale steps: 1 pad = 1 degree", w, goodStyle)...)
+		} else {
+			out = append(out, " "+labelStyle.Render("pad ")+fmt.Sprintf("%.2f c", pl.PadCents)+
+				labelStyle.Render("  step ")+fmt.Sprintf("%.2f c", pl.Target)+
+				labelStyle.Render("  error ")+errStyle.Render(fmt.Sprintf("%+.2f c", pl.Error)))
+		}
+		if m.analysis.Structure.Class != theory.Equal && !m.factory && !pl.InSteps {
 			out = append(out, wrapStyled("steps differ: worst pad/step error "+fmt.Sprintf("%.1f c", pl.WorstStep), w, warnStyle)...)
 		}
 		if pl.LinnBend == 96 || pl.LinnBend == 1 {
@@ -357,9 +365,15 @@ func (m Model) sendLines() []string {
 		" " + check(m.withLayout) + " send row layout      (l)",
 		" " + check(m.withConfig) + " configure MIDI       (c)",
 		"     " + dimStyle.Render(cfg),
+		" " + check(m.factory) + " factory 12-TET layout (f)",
 		"",
 		" s send (asks first; backs up settings before)",
 		" b backup   r restore latest backup",
+	}
+	if m.factory {
+		out[3] = dimStyle.Render(ansi.Strip(out[3]) + "  unused")
+		out[4] = dimStyle.Render(ansi.Strip(out[4]) + "  unused")
+		out[7] = warnStyle.Render(out[7])
 	}
 	if m.lastBackup != "" {
 		out = append(out, "", " "+dimStyle.Render("last backup: "+filepath.Base(m.lastBackup)))
@@ -415,6 +429,12 @@ func (m Model) renderOverlay() string {
 		title = "DEGREE TABLE   ↑↓ scroll, Esc close"
 		lines = append(report.Summary(m.analysis), "")
 		lines = append(lines, report.DegreeTable(m.analysis)...)
+	case overlayPresets:
+		title = "PRESETS   scale + layout + lights + synth + slot"
+		lines = m.presetLines()
+	case overlayExport:
+		title = "EXPORT TO MADRONA LABS   .scl copied unchanged + a matching .kbm"
+		lines = m.exportLines()
 	case overlayHelp:
 		title = "HELP   Esc close"
 		lines = helpLines
@@ -436,6 +456,9 @@ func (m Model) renderOverlay() string {
 }
 
 func (m Model) confirmSendLines() []string {
+	if m.factory {
+		return m.confirmFactoryLines()
+	}
 	a := m.analysis
 	out := []string{"",
 		fmt.Sprintf(" scale:       %s (%d notes)", a.Scale.Name, a.Structure.Size),
@@ -466,6 +489,30 @@ func (m Model) confirmSendLines() []string {
 		" y send    n cancel")
 }
 
+func (m Model) confirmFactoryLines() []string {
+	out := []string{"",
+		" layout:      factory 12-TET: row offset +5 (fourths), bottom-left F#1 (MIDI 30), octave and transpose 0",
+		" lights:      note-light pattern 0: C in cyan, D E F G A B in green; stock Guitar tuning rows",
+		" light slots: unchanged (the custom slots keep their patterns)",
+	}
+	if m.withConfig {
+		j := m.job()
+		mode := "Channel Per Note, main 1, per-note 2-16"
+		if j.Config.OneChannel {
+			mode = "One Channel, channel 1"
+		}
+		out = append(out, fmt.Sprintf(" MIDI setup:  %s, Bend Range %d, Y CC74, Z channel pressure", mode, j.Config.Bend),
+			fmt.Sprintf(" synth:       %s: set its per-note bend range to %d, and its tuning to 12-TET", m.profile().Name, m.synthBend))
+	} else {
+		out = append(out, " MIDI setup:  unchanged")
+	}
+	return append(out, "",
+		" Every setting is backed up to ~/.config/linnkit/backups first; the send is verified by readback.",
+		warnStyle.Render(" To keep this after power-off, press and release a control button (e.g. Preset) afterwards:"),
+		warnStyle.Render(" only that writes these settings to flash."), "",
+		" y send    n cancel")
+}
+
 var helpLines = []string{
 	"",
 	" Panes: SCALES, SCALE, LAYOUT, LIGHTS, SEND. Tab or Left/Right moves between them; the GRID shows the result.",
@@ -473,11 +520,17 @@ var helpLines = []string{
 	" SCALES   ↑↓ move, Enter load, / filter by name or description (Enter or Esc ends the filter)",
 	" SCALE    ↑↓ scroll the degree table; m interval matrix; t full table",
 	" LAYOUT   ↑↓ pick a row offset (best first); [ ] move the bottom-left note down or up",
+	"          { } move the root (MIDI note of degree 0) down or up",
 	" LIGHTS   ↑↓ pick a scheme; < > change the prime limit for just-interval lights",
 	" SYNTH    ↑↓ pick a synth; < > its per-note bend range S. The LinnStrument Bend Range B follows:",
 	"          one pad of slide = 100 x S / B cents, aimed at the scale's step (average step if unequal)",
 	" SEND     0 1 2 light slot; l row layout on/off; c MIDI setup on/off; s send (asks first)",
+	"          f factory 12-TET layout instead of the scale (rows in fourths, stock note lights)",
 	"          b backup settings; r restore the latest backup",
+	" PRESETS  p opens them: a saves the scale with its settings under a name, Enter loads one, d deletes",
+	"          Each scale also remembers its own settings between runs.",
+	" EXPORT   e copies the scale plus a matching .kbm to ~/Music/Madrona Labs/Scales for Aalto;",
+	"          { } root, h reference Hz, a all listed scales. Files Aalto would read differently are skipped.",
 	"",
 	" Sends always back up every setting first and verify by readback afterwards.",
 	" The LinnStrument must be awake and on its normal play screen.",

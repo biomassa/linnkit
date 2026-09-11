@@ -171,3 +171,24 @@ func TestSnapshotFile(t *testing.T) {
 		t.Errorf("round trip: %+v %v", got, err)
 	}
 }
+
+func TestFactoryJob(t *testing.T) {
+	device := map[int]int{247: 10, 227: 13, 263: 20, 36: 5}
+	d, f := newFake(t, device)
+	n, err := d.Run(Job{Factory: true, Slot: 1}, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != len(FactorySettings()) {
+		t.Errorf("verified %d values, want %d", n, len(FactorySettings()))
+	}
+	if device[247] != 0 || device[227] != 5 || device[263] != 30 || device[270] != 64 || device[203] != 1 ||
+		device[204] != 0 || device[215] != 1 || device[216] != 0 || device[30] != 3 || device[RightSplit+30] != 5 {
+		t.Errorf("device after factory send: %v", device)
+	}
+	for _, m := range f.Sent {
+		if m[0]&0xF0 == 0xB0 && m[1] >= 20 && m[1] <= 23 {
+			t.Fatalf("factory send must not touch custom lights: % x", m)
+		}
+	}
+}
