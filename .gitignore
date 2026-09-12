@@ -10,3 +10,6 @@ refs/
 
 # macOS
 .DS_Store
+
+# personal notes
+docs/terms explained.md
