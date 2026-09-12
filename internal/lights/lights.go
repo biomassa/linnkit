@@ -84,7 +84,7 @@ func (c Color) Light() bool {
 // Swatch is how one scale degree is shown.
 type Swatch struct {
 	Color Color
-	Label string // short text for previews, up to 2 characters
+	Label string // short text for previews; the text grid widens its cells for longer ones
 }
 
 // Pad is what one pad plays and shows.
@@ -116,18 +116,40 @@ func Paint(l layout.Layout, root int, sw []Swatch) Surface {
 	return s
 }
 
-// Plain renders the surface as text, top row first: "row 8  " then 3-character cells,
-// "." for unlit pads.
+// Plain renders the surface as text, top row first: "row 8  " then one cell
+// per pad, as wide as the longest label plus a space and at least 3. A pad
+// shows its label; an unlit pad without one shows ".".
 func (s Surface) Plain() string {
+	cell := func(p Pad) string {
+		if p.Label == "" && p.Color == Off {
+			return "."
+		}
+		return p.Label
+	}
+	w := 3
+	for _, row := range s {
+		for _, p := range row {
+			w = max(w, len(cell(p))+1)
+		}
+	}
 	var b strings.Builder
 	for row := layout.Rows - 1; row >= 0; row-- {
 		fmt.Fprintf(&b, "row %d  ", row+1)
 		for _, p := range s[row] {
-			label := p.Label
-			if p.Color == Off && label != "!!" {
-				label = "."
-			}
-			fmt.Fprintf(&b, "%-3s", label)
+			fmt.Fprintf(&b, "%-*s", w, cell(p))
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// CC renders each pad's CC22 colour number, top row first, like Plain.
+func (s Surface) CC() string {
+	var b strings.Builder
+	for row := layout.Rows - 1; row >= 0; row-- {
+		fmt.Fprintf(&b, "row %d  ", row+1)
+		for _, p := range s[row] {
+			fmt.Fprintf(&b, "%-3d", int(p.Color))
 		}
 		b.WriteString("\n")
 	}
@@ -146,15 +168,24 @@ func (s Surface) ANSI() string {
 				fg = [3]uint8{20, 20, 20}
 			}
 			label := p.Label
-			if p.Color == Off {
+			if label == "!!" { // outside MIDI 0..127: dark; unlit pads keep other labels
 				label = ""
 			}
+			label = Short(label)
 			fmt.Fprintf(&top, "\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm%-3s\x1b[0m ", c[0], c[1], c[2], fg[0], fg[1], fg[2], center(label, 3))
 			fmt.Fprintf(&bottom, "\x1b[38;2;%d;%d;%dm▀▀▀\x1b[0m ", c[0], c[1], c[2])
 		}
 		b.WriteString(" " + top.String() + "\n " + bottom.String() + "\n")
 	}
 	return b.String()
+}
+
+// Short cuts a label to the 3 characters a colour preview cell holds.
+func Short(label string) string {
+	if len(label) > 3 {
+		return label[:3]
+	}
+	return label
 }
 
 func center(s string, w int) string {

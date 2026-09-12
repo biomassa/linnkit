@@ -1,0 +1,18 @@
+row 8  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  
+row 7  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  
+row 6  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  
+row 5  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  
+row 4  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  
+row 3  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  
+row 2  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  
+row 1  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  B  C  D  E  F  G  A  
+C root  white k 0..4  yellow 5..8  green -1..-4  blue 9..12  red -5..-8  cyan 13..16  pink -9..-12  (generator 4)
+
+row 8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  
+row 7  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  
+row 6  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  
+row 5  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  
+row 4  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  
+row 3  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  
+row 2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  
+row 1  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  2  6  8  8  3  8  8  

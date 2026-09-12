@@ -1,0 +1,18 @@
+row 8  A   Bbb A#  Bb  Ax  B   Cb  B#  C   Dbb C#  Db  Cx  D   Ebb D#  Eb  Dx  E   Fb  E#  F   Gbb F#  Gb  
+row 7  G   Abb G#  Ab  Gx  A   Bbb A#  Bb  Ax  B   Cb  B#  C   Dbb C#  Db  Cx  D   Ebb D#  Eb  Dx  E   Fb  
+row 6  F   Gbb F#  Gb  Fx  G   Abb G#  Ab  Gx  A   Bbb A#  Bb  Ax  B   Cb  B#  C   Dbb C#  Db  Cx  D   Ebb 
+row 5  Eb  Dx  E   Fb  E#  F   Gbb F#  Gb  Fx  G   Abb G#  Ab  Gx  A   Bbb A#  Bb  Ax  B   Cb  B#  C   Dbb 
+row 4  Db  Cx  D   Ebb D#  Eb  Dx  E   Fb  E#  F   Gbb F#  Gb  Fx  G   Abb G#  Ab  Gx  A   Bbb A#  Bb  Ax  
+row 3  Cb  B#  C   Dbb C#  Db  Cx  D   Ebb D#  Eb  Dx  E   Fb  E#  F   Gbb F#  Gb  Fx  G   Abb G#  Ab  Gx  
+row 2  Bbb A#  Bb  Ax  B   Cb  B#  C   Dbb C#  Db  Cx  D   Ebb D#  Eb  Dx  E   Fb  E#  F   Gbb F#  Gb  Fx  
+row 1  Abb G#  Ab  Gx  A   Bbb A#  Bb  Ax  B   Cb  B#  C   Dbb C#  Db  Cx  D   Ebb D#  Eb  Dx  E   Fb  E#  
+C root  white k 0..4  yellow 5..8  green -1..-4  blue 9..12  red -5..-8  cyan 13..16  pink -9..-12  (generator 18)
+
+row 8  8  11 5  3  0  2  1  5  6  11 2  1  4  8  11 5  3  4  8  1  5  3  0  2  1  
+row 7  8  11 2  3  4  8  11 5  3  0  2  1  5  6  11 2  1  4  8  11 5  3  4  8  1  
+row 6  3  0  2  1  4  8  11 2  3  4  8  11 5  3  0  2  1  5  6  11 2  1  4  8  11 
+row 5  3  4  8  1  5  3  0  2  1  4  8  11 2  3  4  8  11 5  3  0  2  1  5  6  11 
+row 4  1  4  8  11 5  3  4  8  1  5  3  0  2  1  4  8  11 2  3  4  8  11 5  3  0  
+row 3  1  5  6  11 2  1  4  8  11 5  3  4  8  1  5  3  0  2  1  4  8  11 2  3  4  
+row 2  11 5  3  0  2  1  5  6  11 2  1  4  8  11 5  3  4  8  1  5  3  0  2  1  4  
+row 1  11 2  3  4  8  11 5  3  0  2  1  5  6  11 2  1  4  8  11 5  3  4  8  1  5  

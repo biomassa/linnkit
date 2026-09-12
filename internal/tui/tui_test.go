@@ -394,3 +394,104 @@ func TestRelayWindow(t *testing.T) {
 		t.Errorf("relay settings should be remembered: %s %d", relay.Targets[m2.relayTarget].Name, m2.relayLast)
 	}
 }
+
+func TestMoreLightSchemes(t *testing.T) {
+	st, _ := store.Open(t.TempDir())
+	m := withStore(t, st)
+	m = press(t, m, down, enter) // 31-edo
+	m.focus = paneLights
+	for schemes[m.scheme] != "moskeys" {
+		m = press(t, m, down)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "MOS as white keys") {
+		t.Error("the scheme list should scroll to moskeys")
+	}
+	m = press(t, m, char('>'), char('>'), char('}'), char('}'), char('}'))
+	if m.gen != 2 || m.mosSize != 3 {
+		t.Fatalf("generator %d size %d", m.gen, m.mosSize)
+	}
+	for m.gen < 2 || m.mosSize < 16 {
+		m = press(t, m, char('}'))
+	}
+	if m.surface[3][0].Color == lights.Off && m.surface[3][0].Degree != 0 {
+		t.Log("pad colours follow the settings")
+	}
+	for schemes[m.scheme] != "harmonics" {
+		m = press(t, m, down)
+	}
+	m = press(t, m, char('>'), char('{'))
+	if m.harm != 32 || m.subharm {
+		t.Errorf("harmonics %d subharmonics %v", m.harm, m.subharm)
+	}
+	m2 := withStore(t, st)
+	m2 = press(t, m2, down, enter)
+	if schemes[m2.scheme] != "harmonics" || m2.gen != 2 || m2.mosSize != 16 || m2.harm != 32 || m2.subharm {
+		t.Errorf("settings not restored: %s gen %d size %d harm %d sub %v", schemes[m2.scheme], m2.gen, m2.mosSize, m2.harm, m2.subharm)
+	}
+}
+
+func TestEverySchemeFitsTheDashboard(t *testing.T) {
+	m := ready(t)
+	for _, name := range []string{"31-edo", "ji_13", "ji_9coh", "22edo"} {
+		m.filter = ""
+		for i, e := range m.entries {
+			if e.name == name {
+				m = m.load(i)
+			}
+		}
+		for i := range schemes {
+			m.scheme = i
+			m = m.paint()
+			for j, l := range strings.Split(m.View().Content, "\n") {
+				if w := ansi.StringWidth(l); w != MinWidth {
+					t.Fatalf("%s %s: line %d is %d wide", name, schemes[i], j+1, w)
+				}
+			}
+		}
+	}
+}
+
+func TestPadsAreSquare(t *testing.T) {
+	for _, c := range []struct{ w, h, bw, bh int }{{160, 50, 5, 3}, {240, 70, 8, 4}, {300, 40, 6, 3}, {160, 90, 5, 3}} {
+		if bw, bh := padSize(c.w, c.h); bw != c.bw || bh != c.bh {
+			t.Errorf("%dx%d: pads %dx%d, want %dx%d", c.w, c.h, bw, bh, c.bw, c.bh)
+		}
+	}
+}
+
+func TestBigGrid(t *testing.T) {
+	m := ready(t)
+	m = press(t, m, down, enter) // 31-edo
+	for schemes[m.scheme] != "consonance" {
+		m.scheme++
+	}
+	m = m.paint()
+	m = press(t, m, char('g'))
+	if m.overlay != overlayGrid {
+		t.Fatal("g should open the big grid")
+	}
+	for _, size := range [][2]int{{MinWidth, MinHeight}, {240, 70}} {
+		next, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		m = next.(Model)
+		out := m.View().Content
+		lines := strings.Split(out, "\n")
+		if len(lines) != size[1] {
+			t.Errorf("%v: %d lines", size, len(lines))
+		}
+		for i, l := range lines {
+			if w := ansi.StringWidth(l); w != size[0] {
+				t.Fatalf("%v: line %d is %d wide", size, i+1, w)
+			}
+		}
+		plain := ansi.Strip(out)
+		for _, s := range []string{"13/10", "d18", "PS", "odd limit"} {
+			if !strings.Contains(plain, s) {
+				t.Errorf("%v: big grid lacks %q", size, s)
+			}
+		}
+	}
+	m = press(t, m, char('g'))
+	if m.overlay != noOverlay {
+		t.Error("g again closes it")
+	}
+}

@@ -59,13 +59,17 @@ type RelaySettings struct {
 
 // ScaleSettings is what the dashboard remembers for one scale.
 type ScaleSettings struct {
-	Offset    int      `json:"offset"`            // row offset in scale steps
-	Low       int      `json:"low"`               // bottom-left MIDI note; -1 = the candidate's own
-	Root      int      `json:"root"`              // MIDI note of degree 0
-	RefHz     float64  `json:"ref_hz,omitempty"`  // frequency of the root; 0 = its 12-TET frequency
-	Scheme    string   `json:"scheme"`            // light scheme: ji, names, mos, root, palette
-	Limit     int      `json:"limit,omitempty"`   // prime limit for the ji scheme
-	Palette   []string `json:"palette,omitempty"` // color name per degree, for the palette scheme
+	Offset    int      `json:"offset"`                    // row offset in scale steps
+	Low       int      `json:"low"`                       // bottom-left MIDI note; -1 = the candidate's own
+	Root      int      `json:"root"`                      // MIDI note of degree 0
+	RefHz     float64  `json:"ref_hz,omitempty"`          // frequency of the root; 0 = its 12-TET frequency
+	Scheme    string   `json:"scheme"`                    // light scheme: ji, names, mos, root, palette
+	Limit     int      `json:"limit,omitempty"`           // prime limit for the ji scheme
+	Palette   []string `json:"palette,omitempty"`         // color name per degree, for the palette scheme
+	Generator int      `json:"generator,omitempty"`       // light schemes: generator in degrees; 0 = nearest 3/2
+	MOSSize   int      `json:"mos_size,omitempty"`        // moskeys: notes; 0 = automatic
+	Harmonics int      `json:"harmonics,omitempty"`       // harmonics scheme: 16 (1-16) or 32 (16-32); 0 = 16
+	NoSubharm bool     `json:"no_subharmonics,omitempty"` // harmonics scheme: leave out the subharmonics
 	Synth     string   `json:"synth"`
 	SynthBend int      `json:"synth_bend"`
 }

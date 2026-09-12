@@ -156,6 +156,35 @@ func groups(values []float64, tol float64) []group {
 	return out
 }
 
+// StepClasses sorts steps into size classes the way groups does (a class
+// holds the values within tol of its smallest member). It returns each step's
+// class, 0 = the largest, and the number of classes.
+func StepClasses(steps []float64, tol float64) ([]int, int) {
+	v := append([]float64(nil), steps...)
+	sort.Float64s(v)
+	var lows []float64
+	start := 0
+	for i, x := range v {
+		if i == 0 {
+			lows = append(lows, x)
+		} else if x-v[start] > tol {
+			start = i
+			lows = append(lows, x)
+		}
+	}
+	out := make([]int, len(steps))
+	for i, s := range steps {
+		g := 0
+		for j, lo := range lows {
+			if s >= lo {
+				g = j
+			}
+		}
+		out[i] = len(lows) - 1 - g
+	}
+	return out, len(lows)
+}
+
 func gcd(a, b int) int {
 	for b != 0 {
 		a, b = b, a%b

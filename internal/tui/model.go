@@ -47,6 +47,7 @@ const (
 	overlayPresets
 	overlayExport
 	overlayRelay
+	overlayGrid
 )
 
 // Config is how the dashboard starts.
@@ -60,9 +61,11 @@ type Config struct {
 }
 
 var (
-	schemes      = []string{"ji", "names", "mos", "root"}
-	schemeTitles = []string{"just-interval families", "note names", "MOS inside the scale", "root only"}
-	limits       = []int{3, 5, 7, 11, 13}
+	schemes      = append([]string{"ji", "names", "mos", "root"}, lights.MoreSchemes...)
+	schemeTitles = []string{"just-interval families", "note names", "MOS inside the scale", "root only",
+		"chain of fifths (Lumatone 31)", "MOS as white keys", "Wijmenga keyboard colours", "Kite colour notation",
+		"prime factors 3 5 7", "step sizes", "nested MOS layers", "consonance by odd limit", "harmonic series"}
+	limits = []int{3, 5, 7, 11, 13}
 )
 
 // Model is the dashboard state.
@@ -93,6 +96,10 @@ type Model struct {
 
 	scheme  int
 	limitIx int
+	gen     int  // light schemes: generator in degrees, 0 = automatic
+	mosSize int  // moskeys: notes, 0 = automatic
+	harm    int  // harmonics: 16 or 32
+	subharm bool // harmonics: also subharmonics
 	surface lights.Surface
 	legend  string
 
@@ -147,7 +154,7 @@ func New(cfg Config) Model {
 	if cfg.Port == "" {
 		cfg.Port = device.DefaultPortName
 	}
-	m := Model{cfg: cfg, loading: true, limitIx: 2, slot: 2, withLayout: true, withConfig: true, low: -1,
+	m := Model{cfg: cfg, loading: true, limitIx: 2, harm: 16, subharm: true, slot: 2, withLayout: true, withConfig: true, low: -1,
 		root: cfg.Root, synthBend: synth.Profiles[0].DefaultBend, relayRPN: true,
 		status: "loading scales", deviceInfo: "checking device"}
 	m = m.setRelayTarget(0)
@@ -254,7 +261,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // settings are the loaded scale's current settings.
 func (m Model) settings() store.ScaleSettings {
 	return store.ScaleSettings{Offset: m.lay.Offset, Low: m.low, Root: m.root, RefHz: m.refHz, Scheme: schemes[m.scheme],
-		Limit: limits[m.limitIx], Synth: m.profile().Name, SynthBend: m.synthBend}
+		Limit: limits[m.limitIx], Synth: m.profile().Name, SynthBend: m.synthBend,
+		Generator: m.gen, MOSSize: m.mosSize, Harmonics: m.harm, NoSubharm: !m.subharm}
 }
 
 // persist writes the loaded scale's settings when they changed, and makes its
@@ -287,7 +295,8 @@ func (m Model) persist() Model {
 
 func equalSettings(a, b store.ScaleSettings) bool {
 	return a.Offset == b.Offset && a.Low == b.Low && a.Root == b.Root && a.RefHz == b.RefHz && a.Scheme == b.Scheme &&
-		a.Limit == b.Limit && a.Synth == b.Synth && a.SynthBend == b.SynthBend &&
+		a.Limit == b.Limit && a.Generator == b.Generator && a.MOSSize == b.MOSSize &&
+		a.Harmonics == b.Harmonics && a.NoSubharm == b.NoSubharm && a.Synth == b.Synth && a.SynthBend == b.SynthBend &&
 		strings.Join(a.Palette, ",") == strings.Join(b.Palette, ",")
 }
 
@@ -310,6 +319,10 @@ func (m Model) apply(v store.ScaleSettings) Model {
 			m.limitIx = i
 		}
 	}
+	m.gen, m.mosSize, m.harm, m.subharm = v.Generator, v.MOSSize, 16, !v.NoSubharm
+	if v.Harmonics == 32 {
+		m.harm = 32
+	}
 	return m.setSynth(v.Synth, v.SynthBend).paint()
 }
 
@@ -328,6 +341,10 @@ func (m Model) key(k string) (tea.Model, tea.Cmd) {
 		return m.stopRelay(), tea.Quit
 	case "R":
 		return m.openRelay()
+	case "g":
+		if m.analysis != nil {
+			m.overlay = overlayGrid
+		}
 	case "tab", "right":
 		m.focus = (m.focus + 1) % paneCount
 	case "shift+tab", "left":
@@ -429,10 +446,8 @@ func (m Model) paneKey(k string) Model {
 			m.scheme = max(0, m.scheme-1)
 		case "down":
 			m.scheme = min(len(schemes)-1, m.scheme+1)
-		case "<":
-			m.limitIx = max(0, m.limitIx-1)
-		case ">":
-			m.limitIx = min(len(limits)-1, m.limitIx+1)
+		case "<", ">", "{", "}":
+			return m.lightSetting(k)
 		}
 		m = m.paint()
 	case paneSynth:
@@ -511,6 +526,11 @@ func (m Model) overlayKey(k string) (tea.Model, tea.Cmd) {
 		return m.exportKey(k)
 	case overlayRelay:
 		return m.relayKey(k)
+	case overlayGrid:
+		if k == "g" || k == "esc" || k == "q" {
+			m.overlay = noOverlay
+		}
+		return m, nil
 	case overlayConfirmSend:
 		switch k {
 		case "y":
@@ -575,6 +595,7 @@ func (m Model) load(i int) Model {
 	m.analysis = theory.Analyze(s, theory.DefaultOptions())
 	m.loaded, m.sel = e.path, i
 	m.root, m.refHz = m.cfg.Root, 0
+	m.gen, m.mosSize, m.harm, m.subharm = 0, 0, 16, true
 	m.cands = layout.Candidates(m.analysis, layout.Options{Root: m.root})
 	m.candSel, m.low, m.tableScroll = 0, -1, 0
 	m.status = "loaded " + e.name
@@ -620,9 +641,14 @@ func (m Model) paint() Model {
 			sw = lights.RootOnly(n, lights.Magenta)
 			m.legend = "no MOS found in this scale: root only"
 		}
-	default:
+	case "root":
 		sw = lights.RootOnly(n, lights.Magenta)
 		m.legend = "R root"
+	default:
+		var err error
+		if sw, m.legend, err = lights.Scheme(schemes[m.scheme], m.analysis, m.lightSettings()); err != nil {
+			sw, m.legend = lights.RootOnly(n, lights.Magenta), err.Error()
+		}
 	}
 	m.surface = lights.Paint(m.lay, m.root, sw)
 	if m.factory {

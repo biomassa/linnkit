@@ -19,6 +19,13 @@ type gridOpts struct {
 	offset, low, root, limit int
 	scheme                   string
 	tol                      float64
+	generator, mossize       int
+	harmonics, subharmonics  int
+}
+
+func (g *gridOpts) settings() lights.Settings {
+	return lights.Settings{Limit: g.limit, Generator: g.generator, MOSSize: g.mossize, Harmonics: g.harmonics,
+		Subharmonics: g.subharmonics != 0}
 }
 
 func addGridFlags(fs *flag.FlagSet) *gridOpts {
@@ -26,9 +33,13 @@ func addGridFlags(fs *flag.FlagSet) *gridOpts {
 	fs.IntVar(&g.offset, "offset", 0, "row offset in notes (0 = best candidate)")
 	fs.IntVar(&g.low, "low", -1, "MIDI note of the bottom-left pad (-1 = root on row 4, column 1)")
 	fs.IntVar(&g.root, "root", 60, "MIDI note of degree 0")
-	fs.StringVar(&g.scheme, "scheme", "ji", "lights: ji, names, mos or root")
-	fs.IntVar(&g.limit, "limit", 7, "ji scheme: highest prime")
+	fs.StringVar(&g.scheme, "scheme", "ji", "lights: root, ji, names, mos, "+strings.Join(lights.MoreSchemes, ", "))
+	fs.IntVar(&g.limit, "limit", 7, "ji, kite, factors: highest prime")
 	fs.Float64Var(&g.tol, "tol", 0, "ji scheme: cents tolerance (0 = automatic)")
+	fs.IntVar(&g.generator, "generator", 0, "chain, moskeys, wijmenga, nested: generator in degrees (0 = the degree nearest 3/2)")
+	fs.IntVar(&g.mossize, "mossize", 0, "moskeys: MOS size in notes (0 = automatic)")
+	fs.IntVar(&g.harmonics, "harmonics", 16, "harmonics scheme: 16 (harmonics 1-16) or 32 (16-32)")
+	fs.IntVar(&g.subharmonics, "subharmonics", 1, "harmonics scheme: 1 = also the subharmonics, 0 = not")
 	return g
 }
 
@@ -74,7 +85,12 @@ func (g *gridOpts) build(path string) (*gridResult, error) {
 		sw = lights.RootOnly(n, lights.Magenta)
 		r.legend = "R root"
 	default:
-		return nil, fmt.Errorf("unknown scheme %q", g.scheme)
+		if g.harmonics != 16 && g.harmonics != 32 {
+			return nil, fmt.Errorf("-harmonics must be 16 or 32, not %d", g.harmonics)
+		}
+		if sw, r.legend, err = lights.Scheme(g.scheme, r.analysis, g.settings()); err != nil {
+			return nil, err
+		}
 	}
 	r.surface = lights.Paint(r.layout, g.root, sw)
 	return r, nil
@@ -86,6 +102,7 @@ func runGrid(args []string, stdout, stderr io.Writer) int {
 	g := addGridFlags(fs)
 	top := fs.Int("top", 5, "number of layout candidates to list")
 	color := fs.Bool("color", false, "24-bit color grid instead of text labels")
+	cc := fs.Bool("cc", false, "also print each pad's CC22 colour number")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -109,6 +126,9 @@ func runGrid(args []string, stdout, stderr io.Writer) int {
 	}
 	tw.Flush()
 	writeSurface(stdout, r, g, *color)
+	if *cc {
+		fmt.Fprint(stdout, "\nCC22 colours (0 = unlit)\n", r.surface.CC())
+	}
 	return 0
 }
 

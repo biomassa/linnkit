@@ -102,7 +102,7 @@ func (m Model) header(w int) string {
 }
 
 func (m Model) footer(w int) string {
-	keys := "↑↓ move  Tab pane  / filter  0-2 slot  l layout  c config  f factory  s send  " +
+	keys := "↑↓ move  Tab pane  / filter  0-2 slot  f factory  s send  g grid  " +
 		"p presets  e export  R relay  b backup  r restore  m t tables  ? help  q quit"
 	return dimStyle.Render(fit(" "+keys, w))
 }
@@ -215,22 +215,21 @@ func (m Model) layoutLines(h int) []string {
 }
 
 func (m Model) lightsLines() []string {
+	const shown = 4 // the pane fits 4 schemes; the list scrolls with the selection
+	start := max(0, min(m.scheme-1, len(schemes)-shown))
 	var out []string
-	for i, title := range schemeTitles {
+	for i := start; i < start+shown && i < len(schemes); i++ {
 		mark := "( )"
 		if i == m.scheme {
 			mark = "(•)"
 		}
-		line := fmt.Sprintf(" %s %s", mark, title)
-		if i == 0 {
-			line += fmt.Sprintf("   prime limit %d (< >)", limits[m.limitIx])
-		}
+		line := fmt.Sprintf(" %s %s", mark, schemeTitles[i])
 		if i == m.scheme && m.focus == paneLights {
 			line = selStyle.Render(fit(line, rightWidth-2))
 		}
 		out = append(out, line)
 	}
-	return append(out, " "+dimStyle.Render("palette editor: M5"))
+	return append(out, " "+dimStyle.Render(fmt.Sprintf("%d/%d  ", m.scheme+1, len(schemes)))+m.lightSettingText())
 }
 
 func (m Model) synthLines(w, h int) []string {
@@ -415,9 +414,10 @@ func (m Model) gridLines() []string {
 		for _, p := range m.surface[row] {
 			c := p.Color.RGB()
 			label := p.Label
-			if p.Color == lights.Off {
+			if label == "!!" { // outside MIDI 0..127: dark; unlit pads keep other labels
 				label = ""
 			}
+			label = lights.Short(label)
 			top.WriteString(rgbBG(c) + rgbFG(textOn(p.Color)) + center(label, 3) + "\x1b[0m ")
 			bottom.WriteString(rgbFG(c) + "▀▀▀\x1b[0m ")
 		}
@@ -437,6 +437,9 @@ func rgbBG(c [3]uint8) string { return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", c[0], 
 func rgbFG(c [3]uint8) string { return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", c[0], c[1], c[2]) }
 
 func (m Model) renderOverlay() string {
+	if m.overlay == overlayGrid {
+		return m.bigGrid()
+	}
 	w, h := m.width, m.height
 	var title string
 	var lines []string
@@ -543,7 +546,8 @@ var helpLines = []string{
 	" SCALE    ↑↓ scroll the degree table; m interval matrix; t full table",
 	" LAYOUT   ↑↓ pick a row offset (best first); [ ] move the bottom-left note down or up",
 	"          { } move the root (MIDI note of degree 0) down or up",
-	" LIGHTS   ↑↓ pick a scheme; < > change the prime limit for just-interval lights",
+	" LIGHTS   ↑↓ pick one of 13 schemes (the list scrolls); < > the scheme's main setting (prime limit,",
+	"          generator, harmonics 1-16/16-32); { } the second (MOS size, subharmonics on/off)",
 	" SYNTH    ↑↓ pick a synth; < > its per-note bend range S. The LinnStrument Bend Range B follows:",
 	"          one pad of slide = 100 x S / B cents, aimed at the scale's step (average step if unequal)",
 	" SEND     0 1 2 light slot; l row layout on/off; c MIDI setup on/off; s send (asks first)",
@@ -551,6 +555,8 @@ var helpLines = []string{
 	"          b backup settings; r restore the latest backup",
 	" PRESETS  p opens them: a saves the scale with its settings under a name, Enter loads one, d deletes",
 	"          Each scale also remembers its own settings between runs.",
+	" GRID     g shows the pads large and square, as big as the window allows, with each pad's label and",
+	"          scale degree; g or Esc goes back. Resize the terminal for bigger pads.",
 	" RELAY    R opens the tuning relay: it retunes the LinnStrument for 12-TET gear (K2600, Mutant Brain)",
 	"          with pitch bend, one channel per note. Space starts and stops it; Esc closes the window only.",
 	" EXPORT   e copies the scale plus a matching .kbm to ~/Music/Madrona Labs/Scales/linnkit for Aalto;",

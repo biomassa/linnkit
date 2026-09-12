@@ -1,0 +1,18 @@
+row 8  yo ru zo wa .  yo .  .  R  .  .  gu .  wa ru zo gu .  yo ru zo wa .  zo ru 
+row 7  wa .  yo gu .  yo ru zo wa .  yo .  .  R  .  .  gu .  wa ru zo gu .  yo ru 
+row 6  wa .  zo ru .  wa .  yo gu .  yo ru zo wa .  yo .  .  R  .  .  gu .  wa ru 
+row 5  gu .  yo ru zo wa .  zo ru .  wa .  yo gu .  yo ru zo wa .  yo .  .  R  .  
+row 4  gu .  wa ru zo gu .  yo ru zo wa .  zo ru .  wa .  yo gu .  yo ru zo wa .  
+row 3  .  .  R  .  .  gu .  wa ru zo gu .  yo ru zo wa .  zo ru .  wa .  yo gu .  
+row 2  ru zo wa .  yo .  .  R  .  .  gu .  wa ru zo gu .  yo ru zo wa .  zo ru .  
+row 1  .  yo gu .  yo ru zo wa .  yo .  .  R  .  .  gu .  wa ru zo gu .  yo ru zo 
+R root  wa white  yo yellow  gu green  zo blue  ru red  ilo lime  lu orange  tho pink  thu cyan  (limit 7)
+
+row 8  2  1  5  8  0  2  0  0  6  0  0  3  0  8  1  5  3  0  2  1  5  8  0  5  1  
+row 7  8  0  2  3  0  2  1  5  8  0  2  0  0  6  0  0  3  0  8  1  5  3  0  2  1  
+row 6  8  0  5  1  0  8  0  2  3  0  2  1  5  8  0  2  0  0  6  0  0  3  0  8  1  
+row 5  3  0  2  1  5  8  0  5  1  0  8  0  2  3  0  2  1  5  8  0  2  0  0  6  0  
+row 4  3  0  8  1  5  3  0  2  1  5  8  0  5  1  0  8  0  2  3  0  2  1  5  8  0  
+row 3  0  0  6  0  0  3  0  8  1  5  3  0  2  1  5  8  0  5  1  0  8  0  2  3  0  
+row 2  1  5  8  0  2  0  0  6  0  0  3  0  8  1  5  3  0  2  1  5  8  0  5  1  0  
+row 1  0  2  3  0  2  1  5  8  0  2  0  0  6  0  0  3  0  8  1  5  3  0  2  1  5  

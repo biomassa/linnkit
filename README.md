@@ -86,6 +86,7 @@ Use Tab, or the Left and Right arrows, to go to the next pane. Use the Up and Do
 | `p` | Open the presets |
 | `e` | Export to Madrona Labs synths |
 | `R` | Open the tuning relay |
+| `g` | Show the grid large: square pads, as big as the window allows, with their labels and scale degrees. Press `g` or Esc to go back. |
 | `b` | Back up the LinnStrument settings |
 | `r` | Restore the latest backup |
 | `m` | Show the interval matrix |
@@ -122,6 +123,17 @@ To go back to the settings before the send, press `r`. Then press `y`.
 | Note names | The root, naturals, sharps and flats in different colors |
 | MOS inside the scale | The root and the notes of a smaller moment-of-symmetry scale. The other notes are not lit. |
 | Root only | The root only |
+| Chain of fifths | Colours by the place on the chain of fifths from the root (Lumatone 31-EDO colours). Labels are note names. |
+| MOS as white keys | A MOS scale white, all other notes blue, like the keys of a MOS keyboard |
+| Wijmenga keyboard | The colours of Wijmenga's microtonal keyboards (meantone and "four seasons" layouts) |
+| Kite colour notation | Kite Giedraitis's colours: wa, yo/gu (5), zo/ru (7), ilo/lu (11), tho/thu (13) |
+| Prime factors | The primes 3, 5 and 7 in a ratio switch the red, green and blue LEDs. The root is not lit. |
+| Step sizes | One colour for each step size, largest white, smallest blue |
+| Nested MOS layers | Up to four MOS scales along the generator, one inside the other |
+| Consonance | Bands by odd limit: 5 or less white, 9 green, 15 blue, higher cyan. Labels are the ratios. |
+| Harmonic series | The harmonics 1–16 (or 16–32) of the root yellow, the subharmonics blue, both white |
+
+In the LIGHTS pane, `<` `>` changes the main setting of the selected scheme: the prime limit, the generator, or the harmonic range. `{` `}` changes the second setting: the MOS size, or subharmonics on or off. linnkit keeps these settings for each scale.
 
 The LinnStrument has 10 colors. Each LED is either on or off for red, green and blue. White, orange, lime and pink are mixes of two colors. Thus, white looks light cyan and pink looks salmon on the pads. The grid preview shows these mixes.
 

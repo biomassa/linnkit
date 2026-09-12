@@ -1,0 +1,18 @@
+row 8  L  L  L  L  L  L  L  L  R  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  
+row 7  L  L  L  L  L  L  L  L  L  L  L  L  L  R  L  L  L  L  L  L  L  L  L  L  L  
+row 6  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  R  L  L  L  L  L  L  
+row 5  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  R  L  
+row 4  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  
+row 3  L  L  R  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  
+row 2  L  L  L  L  L  L  L  R  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  L  
+row 1  L  L  L  L  L  L  L  L  L  L  L  L  R  L  L  L  L  L  L  L  L  L  L  L  L  
+R root  1 step sizes, largest first: L white
+
+row 8  8  8  8  8  8  8  8  8  6  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  
+row 7  8  8  8  8  8  8  8  8  8  8  8  8  8  6  8  8  8  8  8  8  8  8  8  8  8  
+row 6  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  6  8  8  8  8  8  8  
+row 5  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  6  8  
+row 4  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  
+row 3  8  8  6  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  
+row 2  8  8  8  8  8  8  8  6  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  8  
+row 1  8  8  8  8  8  8  8  8  8  8  8  8  6  8  8  8  8  8  8  8  8  8  8  8  8  
