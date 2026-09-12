@@ -97,7 +97,7 @@ func readDeviceStatus(port string) tea.Cmd {
 }
 
 // sendCmd backs up the device, sends the job and verifies it.
-func sendCmd(port string, job device.Job) tea.Cmd {
+func sendCmd(port string, job device.Job, rec *device.LightsRecord) tea.Cmd {
 	return func() tea.Msg {
 		d, err := openDevice(port)
 		if err != nil {
@@ -111,6 +111,11 @@ func sendCmd(port string, job device.Job) tea.Cmd {
 		n, err := d.Run(job, deviceTimeout)
 		if err != nil {
 			return jobDoneMsg{text: "sent, but " + err.Error(), backup: path, slot: job.Slot, sent: true}
+		}
+		if rec != nil && !job.Factory { // the device can't report patterns: keep it for restores
+			if dir, err := device.BackupDir(); err == nil {
+				device.SaveLightsRecord(dir, *rec)
+			}
 		}
 		return jobDoneMsg{text: fmt.Sprintf("sent to light slot %d, %d values verified; backup %s", job.Slot, n, filepath.Base(path)),
 			backup: path, slot: job.Slot, sent: true}
@@ -143,7 +148,8 @@ func restoreCmd(port, path string) tea.Cmd {
 			return jobDoneMsg{text: "restore failed: " + err.Error(), slot: -1}
 		}
 		defer d.Close()
-		changed, saved, err := d.Restore(snap, deviceTimeout)
+		res, err := d.Restore(snap, deviceTimeout)
+		changed, saved := res.Changed, res.Saved
 		if err != nil {
 			return jobDoneMsg{text: "restore failed: " + err.Error(), slot: -1}
 		}
@@ -155,6 +161,10 @@ func restoreCmd(port, path string) tea.Cmd {
 		if v, ok := snap.Values[device.ParamNoteLights]; ok && v >= device.NoteLightsCustom0 {
 			slot = v - device.NoteLightsCustom0
 		}
-		return jobDoneMsg{text: fmt.Sprintf("restored %d parameters from %s, %s", len(changed), filepath.Base(path), flash), slot: slot}
+		painted := "light slots unchanged (no patterns in this backup)"
+		if len(res.Painted) > 0 {
+			painted = fmt.Sprintf("light slots %v painted again", res.Painted)
+		}
+		return jobDoneMsg{text: fmt.Sprintf("restored %d parameters from %s, %s; %s", len(changed), filepath.Base(path), flash, painted), slot: slot}
 	}
 }

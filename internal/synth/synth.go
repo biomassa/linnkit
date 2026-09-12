@@ -88,9 +88,9 @@ var Profiles = []Profile{
 			"track: Bypass Tuning off", "checked with Noisy 2 and Aalto, 31-EDO"},
 	},
 	{
-		Name: "linnkit relay", MPE: true, BendMin: 24, BendMax: 24, DefaultBend: 24, ObeysRPN: No, HostSteps: true,
-		Tuning: "linnkit's tuning relay (key R) retunes 12-TET gear with pitch bend",
-		Notes: []string{"for the Kurzweil K2600, Mutant Brain or any 12-TET synth",
+		Name: "linnkit relay", MPE: true, BendMin: 48, BendMax: 48, DefaultBend: 48, ObeysRPN: No, HostSteps: true,
+		Tuning: "linnkit's relay (key R): 12-TET gear, or Scala synths with exact slides",
+		Notes: []string{"K2600, Mutant Brain, 12-TET synths, Aalto/Kaivo/Surge/Pigments",
 			"the relay reads this Bend Range and turns slides into scale steps"},
 	},
 	{

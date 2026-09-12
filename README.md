@@ -115,6 +115,8 @@ linnkit then does these steps:
 
 To go back to the settings before the send, press `r`. Then press `y`.
 
+The LinnStrument cannot report the light patterns in its custom slots. Thus, linnkit keeps a record of each pattern that it paints (`~/.config/linnkit/backups/lights-slotN.json`), and each backup contains these records. A restore paints the recorded slots again, then shows the slot that was showing at the time of the backup. The records use the same format as linn.lights (Max), so each program can restore the backups of the other.
+
 ### Light schemes
 
 | Scheme | Colors |
@@ -229,23 +231,29 @@ You can also export from the command line:
 
 Use `-n` to see the files before linnkit writes them.
 
-## Tuning relay for 12-TET instruments
+## Tuning relay
 
 Some instruments have no microtuning function, for example the Kurzweil K2600 and the Hexinverter Mutant Brain. The tuning relay tunes them to the scale on the dashboard.
 
 The relay receives the LinnStrument notes over USB. It sends each note as the nearest 12-TET note with pitch bend. Each note gets its own MIDI channel. The relay sends to a MIDI output, for example the DIN output of an audio interface.
+
+The relay can also make slides exact for synths that load the scale themselves (Aalto, Kaivo, Surge XT, Pigments). Select the target "Scala synth". The relay then sends the notes unchanged and converts only the pitch bend, so that each slide stops on the next pad, also in scales with unequal steps. At start, the relay exports the scale and a `.kbm` file to `~/Music/Madrona Labs/Scales/linnkit`. Load them in the synth. Set the DAW or the synth to receive MIDI from the output port of the relay (for example the IAC bus), not from the LinnStrument.
 
 The relay uses these rules:
 
 - A slide across one pad goes to the next scale degree, also in scales with unequal steps.
 - Pressure, Y and poly aftertouch go to the channel of their note. Sustain and program changes go to all channels. MIDI clock goes through.
 - A new note uses the free channel that was quiet for the longest time. Thus, release tails keep their pitch. If all channels are in use, the relay stops the oldest note.
-- The pitch bend range is 24 semitones. At start, the relay sends this range (RPN 0) to each channel.
+- The pitch bend range is 24 semitones for 12-TET instruments and 48 for Scala synths (the synth's per-note bend range). At start, the relay sends this range (RPN 0) to each channel.
+- Vibrato (default 2.5): in fine tunings a side-to-side vibrato is narrow, because a bend counts in scale steps. The relay widens small movements around each pad by this gain. Whole pads do not move, so slides still land on the pads. 1 is off, 3 is the maximum. Above 2, the pitch turns back briefly halfway between pads during a slow slide.
+- Vibrato fade-in (default 40 ms): after each strike the vibrato gain increases from 1 to its value over this time, so the wobble of a landing finger is not widened. 0 is off.
+- Voices (default 16): the relay plays at most this many notes, on the first channels. A new note stops the oldest. For example, set 4 to play the K2600 on 4 channels.
+- The Mutant Brain target is mono: the newest held pad sounds, and when you release it, the newest pad that you still hold sounds again. With legato on (the default), the new note starts before the old note stops, so the gate stays high. With legato off, the gate starts again for each note.
 
 To use the relay:
 
 1. Load a scale and set the root on the dashboard.
-2. In SYNTH, select "linnkit relay". Send to the LinnStrument. The LinnStrument is then in Channel Per Note mode with Bend Range 24.
+2. In SYNTH, select "linnkit relay". Send to the LinnStrument. The LinnStrument is then in Channel Per Note mode with Bend Range 48.
 3. Press `R`.
 4. Select the target, the output port and the channels. Use the Up and Down arrows to select a line. Use the Left and Right arrows to change it.
 5. Set up the target as the relay window shows.
@@ -257,9 +265,10 @@ If you change the scale, the root or the reference frequency on the dashboard, t
 
 | Target | Channels | Setup on the instrument |
 |---|---|---|
-| Kurzweil K2600 | 1–16 | MIDI receive mode Multi. The same program on each channel. Pitch bend range 24 semitones. No intonation table. |
-| Mutant Brain | 1–4 | Note inputs 1–4 on channels 1–4, last-note priority, pitch bend ±24. CV A–D from note inputs 1–4. Notes outside MIDI 24–120 are not sent. |
+| Kurzweil K2600 | 1–16 | MIDI receive mode Multi. The same program on each channel. Pitch bend range 24 semitones (2400 cents). No intonation table. |
+| Mutant Brain | 1 (mono) | Note input 1 on channel 1, last-note priority, pitch bend ±24; gate 1 from note input 1. CV A: note input 1 pitch (V/Oct). CV B: note input 1 velocity. CV C: channel aftertouch on channel 1 (Z). CV D: CC74 on channel 1 (Y). Notes outside MIDI 24–120 are not sent. |
 | Generic 12-TET synth | 1–16 | The same sound on each channel. Pitch bend range 24 semitones. |
+| Scala synth | 2–16 | Aalto, Kaivo, Surge XT or Pigments with the exported scale and `.kbm`. MPE on, per-note bend range 48 (the relay setting). MIDI input from the relay's output port. |
 
 The relay settings stay in `~/.config/linnkit/config.json`.
 

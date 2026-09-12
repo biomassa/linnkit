@@ -105,7 +105,8 @@ func runDevice(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "error:", err)
 			return 1
 		}
-		changed, saved, err := d.Restore(snap, readTimeout)
+		res, err := d.Restore(snap, readTimeout)
+		changed, saved := res.Changed, res.Saved
 		for _, n := range changed {
 			fmt.Fprintf(stdout, "restored %s = %d\n", device.Describe(n), snap.Values[n])
 		}
@@ -114,6 +115,11 @@ func runDevice(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "%d parameters changed; saved to flash: %s\n", len(changed), yesNo(saved))
+		if len(res.Painted) > 0 {
+			fmt.Fprintf(stdout, "light slots painted again: %v\n", res.Painted)
+		} else {
+			fmt.Fprintln(stdout, "light slots unchanged (no patterns in this backup)")
+		}
 	default:
 		fmt.Fprintf(stderr, "error: unknown device command %q\n", cmd)
 		return 2
@@ -195,6 +201,9 @@ func runSend(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(stderr, "error:", err)
 		return 1
+	}
+	if dir, err := device.BackupDir(); err == nil { // the device can't report patterns: keep it for restores
+		device.SaveLightsRecord(dir, device.NewLightsRecord(*slot, r.analysis.Scale.Name, g.scheme, g.limit, g.root, r.layout.Offset, g.low, r.surface))
 	}
 	fmt.Fprintf(stdout, "sent; lights saved to slot %d; verified %d values by readback\n", *slot, n)
 	return 0

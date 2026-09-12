@@ -139,6 +139,10 @@ type Model struct {
 	relayInBend   int
 	relayMsg      string
 	relayTickID   int
+	relayVoices   int           // at most this many notes (1-16); kept across targets
+	relayVibrato  float64       // vibrato gain 1-3
+	relayOnset    int           // vibrato fade-in, ms
+	relayLegato   bool          // mono: new note before the old one ends
 	lastSent      *store.Preset // what the last finished send put there
 
 	exportAll bool   // export every listed scale, not just the loaded one
@@ -156,6 +160,7 @@ func New(cfg Config) Model {
 	}
 	m := Model{cfg: cfg, loading: true, limitIx: 2, harm: 16, subharm: true, slot: 2, withLayout: true, withConfig: true, low: -1,
 		root: cfg.Root, synthBend: synth.Profiles[0].DefaultBend, relayRPN: true,
+		relayVoices: 16, relayVibrato: 2.5, relayOnset: 40, relayLegato: true,
 		status: "loading scales", deviceInfo: "checking device"}
 	m = m.setRelayTarget(0)
 	if cfg.Store != nil {
@@ -538,7 +543,8 @@ func (m Model) overlayKey(k string) (tea.Model, tea.Cmd) {
 			p := m.current()
 			m.pending = &p
 			m.status = fmt.Sprintf("sending to light slot %d", m.slot)
-			return m, sendCmd(m.cfg.Port, m.job())
+			rec := m.lightsRecord()
+			return m, sendCmd(m.cfg.Port, m.job(), &rec)
 		case "n", "esc", "q":
 			m.overlay = noOverlay
 		}

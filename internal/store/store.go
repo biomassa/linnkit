@@ -49,12 +49,16 @@ type Config struct {
 
 // RelaySettings are the tuning relay's last settings.
 type RelaySettings struct {
-	Target string `json:"target"`
-	Port   string `json:"port"`
-	First  int    `json:"first"`
-	Last   int    `json:"last"`
-	Bend   int    `json:"bend"`
-	NoRPN  bool   `json:"no_rpn,omitempty"`
+	Target   string  `json:"target"`
+	Port     string  `json:"port"`
+	First    int     `json:"first"`
+	Last     int     `json:"last"`
+	Bend     int     `json:"bend"`
+	NoRPN    bool    `json:"no_rpn,omitempty"`
+	Voices   int     `json:"voices,omitempty"`   // 0 = 16
+	Vibrato  float64 `json:"vibrato,omitempty"`  // 0 = the default 2.5; 1 = off
+	OnsetMs  *int    `json:"onset_ms,omitempty"` // nil = the default 40
+	NoLegato bool    `json:"no_legato,omitempty"`
 }
 
 // ScaleSettings is what the dashboard remembers for one scale.

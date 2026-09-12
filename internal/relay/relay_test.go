@@ -1,8 +1,10 @@
 package relay
 
 import (
+	"fmt"
 	"math"
 	"testing"
+	"time"
 )
 
 type sink struct{ msgs [][]byte }
@@ -173,5 +175,206 @@ func TestStartStopAndRetune(t *testing.T) {
 	m = s.take()
 	if m[0][0] != 0x80 || len(m) != 4 { // note off, CC123 on both channels, bend reset on channel 1 only (2 is centred)
 		t.Errorf("stop % x", m)
+	}
+}
+
+func scalaEngine(tu Tuning, s, b int) (*Engine, *sink) {
+	sk := &sink{}
+	return New(Config{Tuning: tu, Scala: true, FirstChan: 2, LastChan: 16, BendRange: s, MaxNote: 127, InBend: b}, sk.send), sk
+}
+
+func bendMsg(v int, ch byte) []byte { return []byte{0xE0 | ch, byte(v & 0x7F), byte(v >> 7)} }
+
+// The examples of the shared spec scala-synth-bends.md.
+func TestScalaSynthSpecExamples(t *testing.T) {
+	for _, c := range []struct{ s, want int }{{48, 9778}, {12, 14534}} {
+		e, sk := scalaEngine(edo(31), c.s, 48)
+		e.Handle([]byte{0x91, 70, 100})
+		m := sk.take()
+		if last := m[len(m)-1]; last[0] != 0x91 || last[1] != 70 || bendValue(m[0]) != 8192 {
+			t.Fatalf("S %d: note should pass unchanged on the first relay channel with a centred bend: % x", c.s, m)
+		}
+		e.Handle(bendMsg(12288, 1)) // +24 steps
+		if m := sk.take(); len(m) != 1 || bendValue(m[0]) != c.want {
+			t.Errorf("31-EDO +24 steps, S %d: % x, want %d", c.s, m, c.want)
+		}
+	}
+	ji := Tuning{Root: 60, Cents: []float64{203.91, 386.31, 498.04, 701.96, 884.36, 1088.27, 1200}}
+	e, sk := scalaEngine(ji, 48, 64)
+	e.Handle([]byte{0x90, 61, 100}) // degree 1 (9/8)
+	sk.take()
+	e.Handle(bendMsg(8256, 0)) // +0.5 step towards 5/4
+	if m := sk.take(); len(m) != 1 || bendValue(m[0]) != 8348 {
+		t.Errorf("JI half step: % x, want 8348", m)
+	}
+	if s := e.Stats(); len(s.Voices) != 1 || math.Abs((s.Voices[0].Pitch-61)*100-91.2) > 0.01 {
+		t.Errorf("stats pitch %+v", s.Voices)
+	}
+}
+
+func TestScalaTableExtrapolates(t *testing.T) {
+	tab := edo(31).table()
+	step := 1200.0 / 31
+	if got := tablePitch(&tab, 129) - tab[127]; math.Abs(got-2*step) > 1e-9 {
+		t.Errorf("beyond 127: %v", got)
+	}
+	if got := tab[0] - tablePitch(&tab, -1); math.Abs(got-step) > 1e-9 {
+		t.Errorf("below 0: %v", got)
+	}
+	if got := tablePitch(&tab, 60.5) - tab[60]; math.Abs(got-step/2) > 1e-9 {
+		t.Errorf("between notes: %v", got)
+	}
+}
+
+func TestRoundHalfUp(t *testing.T) {
+	for x, want := range map[float64]int{2.5: 3, -2.5: -2, -2.51: -3, 0.49: 0, -0.5: 0, 132.13: 132} {
+		if got := roundHalfUp(x); got != want {
+			t.Errorf("roundHalfUp(%v) = %d, want %d", x, got, want)
+		}
+	}
+}
+
+// The cases below mirror linn.retune's tests (Max, tests/linn.retune.test.mjs at d0c4edb).
+
+func clocked(cfg Config) (*Engine, *sink, *time.Time) {
+	s := &sink{}
+	e := New(cfg, s.send)
+	now := time.Unix(1000, 0)
+	e.now = func() time.Time { return now }
+	e.manual = true
+	return e, s, &now
+}
+
+func (e *Engine) tick() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.rampTick()
+}
+
+// channels are 1-based in these helpers, as in the Max tests
+func on(ch, n, v int) []byte  { return []byte{0x90 | byte(ch-1), byte(n), byte(v)} }
+func off(ch, n, v int) []byte { return []byte{0x80 | byte(ch-1), byte(n), byte(v)} }
+func bnd(ch, v int) []byte    { return bendMsg(v, byte(ch-1)) }
+func bendAt(semis float64, r int) int {
+	return max(0, min(16383, 8192+roundHalfUp(semis/float64(r)*8192)))
+}
+
+func same(t *testing.T, what string, got, want [][]byte) {
+	t.Helper()
+	if fmt.Sprintf("% x", got) != fmt.Sprintf("% x", want) {
+		t.Errorf("%s:\n got % x\nwant % x", what, got, want)
+	}
+}
+
+func TestVoiceLimit(t *testing.T) {
+	e, s, _ := clocked(Config{Tuning: edo(12), FirstChan: 1, LastChan: 16, BendRange: 24, MaxNote: 127, InBend: 48, Voices: 4})
+	e.Start()
+	s.take()
+	var chans []int
+	for i := range 4 {
+		e.Handle(on(2, 40+i, 90))
+	}
+	for _, m := range s.take() {
+		if m[0]&0xF0 == 0x90 {
+			chans = append(chans, int(m[0]&0x0F)+1)
+		}
+	}
+	if fmt.Sprint(chans) != "[1 2 3 4]" {
+		t.Errorf("channels %v", chans)
+	}
+	e.Handle(on(2, 50, 90))
+	same(t, "a fifth note cuts the oldest", s.take(), [][]byte{off(1, 40, 0), on(1, 50, 90)})
+	e.Stop()
+	n := 0
+	for _, m := range s.take() {
+		if m[0]&0xF0 == 0xB0 && m[1] == 123 {
+			n++
+		}
+	}
+	if n != 4 {
+		t.Errorf("stop covers the 4 channels in use, got %d", n)
+	}
+}
+
+func TestMutantBrainMono(t *testing.T) {
+	st := 12.0 / 31
+	e, s, _ := clocked(Config{Tuning: edo(31), FirstChan: 1, LastChan: 1, BendRange: 24, MinNote: 24, MaxNote: 120, InBend: 48, Mono: true, Legato: true})
+	e.Start()
+	s.take()
+	// note range 24-120, on a 12-TET table as in the Max test (in 31-EDO every pad is in range)
+	d, ds, _ := clocked(Config{Tuning: edo(12), FirstChan: 1, LastChan: 1, BendRange: 24, MinNote: 24, MaxNote: 120, InBend: 48, Mono: true, Legato: true})
+	d.Start()
+	ds.take()
+	for _, m := range [][]byte{on(2, 20, 90), off(2, 20, 0), on(2, 121, 90), off(2, 121, 0)} {
+		d.Handle(m)
+	}
+	same(t, "out of range: dropped with their note-offs", ds.take(), nil)
+	e.Handle(on(2, 61, 90))
+	same(t, "first note", s.take(), [][]byte{bnd(1, bendAt(st, 24)), on(1, 60, 90)})
+	e.Handle(on(3, 70, 80))
+	same(t, "legato: the new note starts first", s.take(), [][]byte{bnd(1, bendAt(10*st-4, 24)), on(1, 64, 80), off(1, 60, 0)})
+	e.Handle(off(3, 70, 0))
+	same(t, "back to the held note", s.take(), [][]byte{bnd(1, bendAt(st, 24)), on(1, 60, 90), off(1, 64, 0)})
+	e.Handle(off(2, 61, 0))
+	same(t, "last release", s.take(), [][]byte{off(1, 60, 0)})
+
+	e.cfg.Legato = false
+	e.Handle(on(2, 61, 90))
+	e.Handle(on(3, 70, 80))
+	same(t, "legato off: the old note ends first", s.take(), [][]byte{on(1, 60, 90), off(1, 60, 0), bnd(1, bendAt(10*st-4, 24)), on(1, 64, 80)})
+	e.Handle([]byte{0xE1, 0, 72}) // +6 steps on the held pad that isn't sounding
+	same(t, "a silent pad's bend waits", s.take(), nil)
+	e.Handle(off(3, 70, 0))
+	same(t, "it counts when that pad sounds again", s.take(), [][]byte{off(1, 64, 0), bnd(1, bendAt(7*st-3, 24)), on(1, 63, 90)})
+}
+
+func TestMonoLegatoSameNote(t *testing.T) {
+	e, s, _ := clocked(Config{Tuning: edo(31), FirstChan: 1, LastChan: 1, BendRange: 24, MinNote: 24, MaxNote: 120, InBend: 48, Mono: true, Legato: true})
+	e.Start()
+	s.take()
+	e.Handle(on(2, 60, 90))
+	e.Handle(on(3, 61, 90)) // both note 60 in 12-TET: only the bend changes
+	same(t, "same 12-TET note", s.take(), [][]byte{on(1, 60, 90), bnd(1, bendAt(12.0/31, 24))})
+}
+
+func TestVibrato(t *testing.T) {
+	w := func(s, g float64) float64 { return s + (g-1)*math.Sin(2*math.Pi*s)/(2*math.Pi) }
+	e, s, _ := clocked(Config{Tuning: edo(12), FirstChan: 2, LastChan: 16, BendRange: 48, MaxNote: 127, InBend: 48, Vibrato: 1.8})
+	e.Start()
+	e.Handle(on(2, 60, 90))
+	s.take()
+	e.Handle([]byte{0xE1, 64, 64}) // 0.375 pad
+	same(t, "widened", s.take(), [][]byte{bnd(2, bendAt(w(0.375, 1.8), 48))})
+	e.Handle([]byte{0xE1, 0, 72}) // 6 pads
+	same(t, "whole pads land exactly", s.take(), [][]byte{bnd(2, bendAt(6, 48))})
+	e.Handle([]byte{0xE1, 0, 64})
+	same(t, "back to the touch point", s.take(), [][]byte{bnd(2, 8192)})
+}
+
+func TestVibratoFadeIn(t *testing.T) {
+	w := func(s, g float64) float64 { return s + (g-1)*math.Sin(2*math.Pi*s)/(2*math.Pi) }
+	e, s, now := clocked(Config{Tuning: edo(12), FirstChan: 2, LastChan: 16, BendRange: 48, MaxNote: 127, InBend: 48, Vibrato: 2.5, OnsetMs: 40})
+	e.Start()
+	e.Handle(on(2, 60, 90))
+	s.take()
+	e.Handle([]byte{0xE1, 64, 64})
+	same(t, "at the strike: the plain bend", s.take(), [][]byte{bnd(2, bendAt(0.375, 48))})
+	*now = now.Add(20 * time.Millisecond)
+	e.tick()
+	same(t, "halfway: gain 1.75", s.take(), [][]byte{bnd(2, bendAt(w(0.375, 1.75), 48))})
+	*now = now.Add(20 * time.Millisecond)
+	if e.tick() {
+		t.Error("the fade should stop at 40 ms")
+	}
+	same(t, "40 ms: full gain", s.take(), [][]byte{bnd(2, bendAt(w(0.375, 2.5), 48))})
+	*now = now.Add(100 * time.Millisecond)
+	e.tick()
+	same(t, "nothing more", s.take(), nil)
+	e.Handle([]byte{0xE1, 0, 72})
+	same(t, "6 pads at any gain", s.take(), [][]byte{bnd(2, bendAt(6, 48))})
+	e.Handle(on(3, 62, 90))
+	e.Handle([]byte{0xE2, 0, 72})
+	if m := s.take(); fmt.Sprintf("% x", m[len(m)-1]) != fmt.Sprintf("% x", bnd(3, bendAt(6, 48))) {
+		t.Errorf("a slide right after a strike lands exactly: % x", m)
 	}
 }

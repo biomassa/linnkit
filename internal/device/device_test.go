@@ -145,7 +145,8 @@ func TestReadBackupRestore(t *testing.T) {
 
 	device[19], device[263], device[243] = 48, 45, 2
 	f.Sent = nil
-	changed, saved, err := d.Restore(snap, time.Second)
+	res, err := d.Restore(snap, time.Second)
+	changed, saved := res.Changed, res.Saved
 	if err != nil {
 		t.Fatal(err)
 	}

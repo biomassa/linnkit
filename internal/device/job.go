@@ -108,6 +108,7 @@ func (d *Device) SaveBackup(timeout time.Duration) (string, error) {
 	if len(snap.Values) == 0 {
 		return "", ErrNoAnswer
 	}
+	snap.AttachLights(dir)
 	path := filepath.Join(dir, snap.Taken.Format("2006-01-02T15-04-05")+".json")
 	return path, snap.Save(path)
 }
@@ -118,7 +119,7 @@ func LatestBackup() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	files, _ := filepath.Glob(filepath.Join(dir, "[0-9]*.json")) // timestamped backups, not the lights-slotN records
 	if len(files) == 0 {
 		return "", errors.New("no backups yet")
 	}

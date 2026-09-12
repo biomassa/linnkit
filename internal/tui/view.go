@@ -458,7 +458,7 @@ func (m Model) renderOverlay() string {
 		title = "EXPORT TO MADRONA LABS   .scl copied unchanged + a matching .kbm"
 		lines = m.exportLines()
 	case overlayRelay:
-		title = "TUNING RELAY   for 12-TET gear: Kurzweil K2600, Mutant Brain"
+		title = "TUNING RELAY   12-TET gear (K2600, Mutant Brain) or synths that load the scale"
 		lines = m.relayLines()
 	case overlayHelp:
 		title = "HELP   Esc close"
@@ -469,7 +469,8 @@ func (m Model) renderOverlay() string {
 	case overlayConfirmRestore:
 		title = "RESTORE DEVICE SETTINGS?"
 		lines = []string{"", " Restore every setting from", "   " + m.restoreFrom, "",
-			" Parameters that differ are written back; actions such as preset load are skipped.", "",
+			" Parameters that differ are written back; actions such as preset load are skipped.",
+			" Light slots with a pattern in the backup are painted again (the LinnStrument can't report its patterns).", "",
 			" y restore    n cancel"}
 	}
 	scroll := min(m.scrollY, max(0, len(lines)-(h-2)))

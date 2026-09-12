@@ -372,14 +372,15 @@ func TestRelayWindow(t *testing.T) {
 		t.Fatalf("overlay %v ports %v pick %d", m.overlay, m.relayPorts, m.relayPort)
 	}
 	out := ansi.Strip(m.View().Content)
-	for _, s := range []string{"TUNING RELAY", "Kurzweil K2600", "16 voices", "24 semitones", "22edo"} {
+	for _, s := range []string{"TUNING RELAY", "Kurzweil K2600", "16 channels", "24 semitones", "22edo", "vibrato", "2.5", "40 ms"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("relay window lacks %q", s)
 		}
 	}
 	m = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight}) // target: Mutant Brain
 	cfg := m.relayConfig()
-	if relay.Targets[m.relayTarget].Name != "Mutant Brain" || cfg.LastChan != 4 || cfg.BendRange != 24 || cfg.MinNote != 24 {
+	if relay.Targets[m.relayTarget].Name != "Mutant Brain" || cfg.LastChan != 1 || !cfg.Mono || !cfg.Legato || cfg.BendRange != 24 || cfg.MinNote != 24 ||
+		cfg.Vibrato != 2.5 || cfg.OnsetMs != 40 || cfg.Voices != 16 {
 		t.Errorf("Mutant Brain config %+v", cfg)
 	}
 	if tu := cfg.Tuning; tu.Root != 60 || len(tu.Cents) != 22 || tu.Offset != 0 {
@@ -390,7 +391,7 @@ func TestRelayWindow(t *testing.T) {
 		t.Error("Esc closes the window")
 	}
 	m = m.saveRelaySettings()
-	if m2 := withStore(t, st); relay.Targets[m2.relayTarget].Name != "Mutant Brain" || m2.relayLast != 4 {
+	if m2 := withStore(t, st); relay.Targets[m2.relayTarget].Name != "Mutant Brain" || m2.relayLast != 1 {
 		t.Errorf("relay settings should be remembered: %s %d", relay.Targets[m2.relayTarget].Name, m2.relayLast)
 	}
 }
@@ -493,5 +494,31 @@ func TestBigGrid(t *testing.T) {
 	m = press(t, m, char('g'))
 	if m.overlay != noOverlay {
 		t.Error("g again closes it")
+	}
+}
+
+func TestRelayScalaTarget(t *testing.T) {
+	st, _ := store.Open(t.TempDir())
+	m := withStore(t, st)
+	m.cfg.ListPorts = func() []string {
+		return []string{"LinnStrument MIDI", "UltraLite-mk5 MIDI Port", "interapp MIDI Bus 1"}
+	}
+	m.cfg.ExportDir = filepath.Join(t.TempDir(), "linnkit")
+	m = press(t, m, down, enter, char('R')) // 31-edo
+	for !relay.Targets[m.relayTarget].Scala {
+		m = press(t, m, tea.KeyPressMsg{Code: tea.KeyRight})
+	}
+	cfg := m.relayConfig()
+	if !cfg.Scala || cfg.FirstChan != 2 || cfg.LastChan != 16 || cfg.BendRange != 48 || m.relayPorts[m.relayPort] != "interapp MIDI Bus 1" {
+		t.Fatalf("Scala synth target: %+v port %s", cfg, m.relayPorts[m.relayPort])
+	}
+	if msg := m.exportForRelay(); !strings.Contains(msg, "31-edo") {
+		t.Errorf("export message %q", msg)
+	}
+	if got := export.Existing(m.cfg.ExportDir); len(got) != 2 {
+		t.Errorf("exported %v", got)
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "slides converted") {
+		t.Error("the window should describe the Scala route")
 	}
 }

@@ -4,8 +4,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/biomassa/linnkit/internal/device"
 	"github.com/biomassa/linnkit/internal/lights"
 )
+
+// lightsRecord is what a send paints into its light slot, kept for restores.
+func (m Model) lightsRecord() device.LightsRecord {
+	return device.NewLightsRecord(m.slot, m.analysis.Scale.Name, schemes[m.scheme], limits[m.limitIx], m.root, m.lay.Offset, m.low, m.surface)
+}
 
 // lightSettings are the loaded scale's scheme options.
 func (m Model) lightSettings() lights.Settings {
