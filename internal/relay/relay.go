@@ -305,11 +305,7 @@ func (e *Engine) Handle(msg []byte) {
 	defer e.mu.Unlock()
 	e.stats.In++
 	st := msg[0]
-	switch {
-	case st == 0xF8 || st == 0xFA || st == 0xFB || st == 0xFC: // clock and transport pass through
-		e.out(st)
-		return
-	case st < 0x80 || st >= 0xF0:
+	if st < 0x80 || st >= 0xF0 { // system messages, clock and transport included, are dropped
 		return
 	}
 	ch := int(st & 0x0F)

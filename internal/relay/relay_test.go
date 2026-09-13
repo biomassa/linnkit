@@ -142,9 +142,11 @@ func TestDroppedNotesAndControllers(t *testing.T) {
 	if m := s.take(); len(m) != 4 {
 		t.Errorf("sustain to %d channels", len(m))
 	}
-	e.Handle([]byte{0xF8})
-	if m := s.take(); len(m) != 1 || m[0][0] != 0xF8 {
-		t.Errorf("clock % x", m)
+	for _, msg := range [][]byte{{0xF8}, {0xFA}, {0xFB}, {0xFC}, {0xF2, 0, 0}} {
+		e.Handle(msg)
+	}
+	if m := s.take(); len(m) != 0 {
+		t.Errorf("clock and transport should be dropped: % x", m)
 	}
 }
 

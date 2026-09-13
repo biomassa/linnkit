@@ -242,7 +242,7 @@ The relay can also make slides exact for synths that load the scale themselves (
 The relay uses these rules:
 
 - A slide across one pad goes to the next scale degree, also in scales with unequal steps.
-- Pressure, Y and poly aftertouch go to the channel of their note. Sustain and program changes go to all channels. MIDI clock goes through.
+- Pressure, Y and poly aftertouch go to the channel of their note. Sustain and program changes go to all channels. MIDI clock, transport and other system messages are dropped.
 - A new note uses the free channel that was quiet for the longest time. Thus, release tails keep their pitch. If all channels are in use, the relay stops the oldest note.
 - The pitch bend range is 24 semitones for 12-TET instruments and 48 for Scala synths (the synth's per-note bend range). At start, the relay sends this range (RPN 0) to each channel.
 - Vibrato (default 2.5): in fine tunings a side-to-side vibrato is narrow, because a bend counts in scale steps. The relay widens small movements around each pad by this gain. Whole pads do not move, so slides still land on the pads. 1 is off, 3 is the maximum. Above 2, the pitch turns back briefly halfway between pads during a slow slide.
